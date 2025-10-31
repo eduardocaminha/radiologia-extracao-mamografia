@@ -1,0 +1,174 @@
+{
+  "cd_atendimento": "string",
+  
+  "dados_pessoais": {
+    "peso": "float|null",
+    "altura": "float|null",
+    "imc": "float|null",
+    "circunferencia_cintura": "float|null",
+    "patologias": "string|null",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "setting": {
+    "tipo": "avaliacao_rastreamento_organizado|mamografia_diagnostica_rastreamento_oportunistico_mulher_assintomatica|mamografia_diagnostica_mulher_sintomatica|outro",
+    "outro_especificar": "string|null",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "comparacao_exames_previos": {
+    "disponivel": "boolean",
+    "exame_data": "string|null",
+    "imagens_disponiveis": "boolean",
+    "laudos_disponiveis": "boolean",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "anamnese_contexto_clinico": {
+    "anamnese": {
+      "historia_familiar_clinica_geral": {
+        "terapia_reposicao_hormonal": "boolean",
+        "sobrevivente_linfoma_radioterapia_toracica": "boolean",
+        "historia_familiar_cancer_mama": {
+          "presente": "boolean",
+          "quem": "string|null",
+          "idade": "int|null"
+        },
+        "mutacoes_geneticas": {
+          "BRCA1": "boolean",
+          "BRCA2": "boolean",
+          "TP53_sindrome_li_fraumeni": "boolean",
+          "PTEN_sindrome_cowden": "boolean",
+          "CDH1": "boolean",
+          "STK11_sindrome_peutz_jeghers": "boolean",
+          "ATM": "boolean",
+          "CHEK2": "boolean",
+          "PALB2": "boolean",
+          "outros_especificar": "string|null"
+        },
+        "avaliacao_risco_cancer_mama_opcional": "string|null"
+      },
+      "historia_clinica_mama": {
+        "biopsia_percutanea_previa": {
+          "realizada": "boolean",
+          "localizacao": "string|null"
+        },
+        "cirurgia_previa_lesoes_benignas": {
+          "realizada": "boolean",
+          "localizacao": "string|null"
+        },
+        "mastoplastia_aditiva_previa": {
+          "realizada": "boolean",
+          "localizacao": "string|null"
+        },
+        "mastoplastia_redutora_previa": {
+          "realizada": "boolean",
+          "localizacao": "string|null"
+        },
+        "outro": "string|null",
+        "se_algum_especificar_localizacao": "string|null"
+      }
+    },
+    "questao_diagnostica": ["enum: paciente_assintomatica|nodulo_mama|nodulo_axilar|secrecao_papilar|alteracoes_pele_mamilo|mastodinia|sintomas_inflamacao|outro"],
+    "questao_diagnostica_outro": "string|null",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "tecnica": {
+    "lateralidade": "bilateral|unilateral_direita|unilateral_esquerda",
+    "tipo_mamografia": "filme_ecran|mamografia_digital_CR|mamografia_digital_FFDM|tomossintese|outro",
+    "outro_especificar": "string|null",
+    "dose_radiacao_mGy": "float|null",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "padrao_parenquimatoso": {
+    "classificacao_ACR": "A|B|C|D",
+    "avaliacao_quantitativa_automatica": "float|null",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "descricao_achados": [
+    {
+      "id_achado": "string",
+      
+      "localizacao": {
+        "lateralidade": "direita|esquerda",
+        "quadrante": "superior_externo|superior_interno|inferior_externo|inferior_interno|central_retroareolar",
+        "coordenadas_polares_mamilo": {
+          "distancia_mm": "float|null",
+          "posicao_horaria": "int[1-12]|null"
+        },
+        "profundidade": "anterior|media|posterior|null",
+        "distancia_mamilo_mm": "float|null",
+        "correspondencia_achado_clinico": "string|null"
+      },
+
+      "tipo_achado": "massa|calcificacoes|assimetrias|distorcoes_arquiteturais|alteracoes_associadas",
+
+      "massa": {
+        "forma": "oval|redonda|irregular|null",
+        "margens": "circunscrita|obscurecida|microlobulada|indistinta_mal_definida|espiculada|null",
+        "densidade": "alta_densidade|isodensa_densidade_igual|baixa_densidade|contem_gordura|null",
+        "confianca": "float[0.0-1.0]|null"
+      },
+
+      "calcificacoes": {
+        "morfologia_tipo": "tipicamente_benigna|morfologia_suspeita|null",
+        "morfologia_descricao": "anelar|redonda|pele|vascular|grosseira_pipoca|distrofica|leite_calcio|suturas|outras_tipicamente_benignas|heterogeneamente_grosseiras|amorfas|finamente_pleomorficas|lineares_finas|ramificadas|null",
+        "padrao_distribuicao": "agrupadas|segmentar|regional|difusa|linear|null",
+        "confianca": "float[0.0-1.0]|null"
+      },
+
+      "assimetrias": {
+        "tipo": "aumento_global|aumento_focal|null",
+        "confianca": "float[0.0-1.0]|null"
+      },
+
+      "distorcoes_arquiteturais": {
+        "tipo": "com_centro_radiotransparente|com_centro_opaco|null",
+        "confianca": "float[0.0-1.0]|null"
+      },
+
+      "tamanho": {
+        "maior_diametro_mm": "float|null",
+        "comparacao_exame_anterior": {
+          "comparavel": "boolean",
+          "data_exame_anterior": "string|null",
+          "evolucao": "estavel|aumentou|diminuiu|novo|nao_comparavel|null"
+        }
+      },
+
+      "alteracoes_associadas": ["enum: retracao_cutanea|espessamento_cutaneo|espessamento_trabecular|retracao_mamilo|adenopatia_axilar|outras"],
+
+      "anotacoes_llm": []
+    }
+  ],
+
+  "categorias_diagnosticas_conclusao_laudo": {
+    "categoria_birads": "0|1|2|3|4|5|6",
+    
+    "detalhamento": {
+      "categoria_0_recursos_adicionais": ["enum: compressao_localizada|magnificacao|outras_incidencias|tomossintese|ultrassom|solicitar_imagens_previas"],
+      "categoria_1_2_seguimento_meses": "12|24|null",
+      "categoria_3_conduta": "seguimento_6_meses|biopsia_opcional|null",
+      "categoria_4_5_biopsia": "guiada_estereotaxia|guiada_ultrassom|guiada_tomossintese|core|vacuum|null",
+      "categoria_6_confirmacao_histopatologica": "string|null"
+    },
+
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  },
+
+  "conclusoes_texto_livre": {
+    "texto": "string",
+    "anotacoes_llm": [],
+    "confianca": "float[0.0-1.0]"
+  }
+}
