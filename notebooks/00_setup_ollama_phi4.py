@@ -1,11 +1,11 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Setup Ollama + Phi-4
+# MAGIC # Setup Ollama + Phi-4 (Databricks - Sem Sudo)
 # MAGIC 
 # MAGIC **Executar 1x por cluster** antes de processar laudos
 # MAGIC 
 # MAGIC Este notebook:
-# MAGIC 1. Instala Ollama
+# MAGIC 1. Instala Ollama em diretório local (sem sudo)
 # MAGIC 2. Inicia o serviço
 # MAGIC 3. Baixa o modelo Phi-4 14B
 # MAGIC 4. Valida instalação
@@ -15,38 +15,80 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Instalar Ollama
+# MAGIC ## 1. Baixar Ollama (Instalação Local)
 
 # COMMAND ----------
 
 # MAGIC %sh
-# MAGIC curl -fsSL https://ollama.com/install.sh | sh
+# MAGIC # Criar diretório local
+# MAGIC mkdir -p /tmp/ollama_install
+# MAGIC cd /tmp/ollama_install
+# MAGIC 
+# MAGIC # Baixar binário
+# MAGIC curl -L https://ollama.com/download/ollama-linux-amd64 -o ollama
+# MAGIC chmod +x ollama
+# MAGIC 
+# MAGIC # Criar link em path local
+# MAGIC mkdir -p ~/.local/bin
+# MAGIC cp ollama ~/.local/bin/ollama
+# MAGIC 
+# MAGIC echo "✅ Ollama baixado para ~/.local/bin/ollama"
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Iniciar Serviço Ollama
+# MAGIC ## 2. Configurar PATH
 
 # COMMAND ----------
 
-# MAGIC %sh
-# MAGIC # Matar processos anteriores se existirem
-# MAGIC pkill ollama || true
-# MAGIC 
-# MAGIC # Iniciar novo serviço em background
-# MAGIC nohup ollama serve > /tmp/ollama.log 2>&1 &
-# MAGIC 
-# MAGIC # Aguardar inicialização
-# MAGIC sleep 10
-# MAGIC 
-# MAGIC # Verificar status
-# MAGIC echo "Status do serviço:"
-# MAGIC ps aux | grep ollama | grep -v grep || echo "Ollama não está rodando"
+import os
+os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
+
+# Testar
+import subprocess
+result = subprocess.run(['which', 'ollama'], capture_output=True, text=True)
+if result.returncode == 0:
+    print(f"✅ Ollama encontrado em: {result.stdout.strip()}")
+else:
+    print("❌ Ollama não encontrado no PATH")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Testar Conexão
+# MAGIC ## 3. Iniciar Serviço Ollama
+
+# COMMAND ----------
+
+import subprocess
+import time
+import os
+
+# Adicionar PATH
+os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
+
+# Matar processos anteriores
+subprocess.run(['pkill', '-f', 'ollama'], stderr=subprocess.DEVNULL)
+time.sleep(2)
+
+# Iniciar novo serviço
+print("Iniciando Ollama...")
+process = subprocess.Popen(
+    [os.path.expanduser('~/.local/bin/ollama'), 'serve'],
+    stdout=open('/tmp/ollama.log', 'w'),
+    stderr=subprocess.STDOUT,
+    env=os.environ
+)
+
+# Aguardar inicialização
+time.sleep(10)
+
+print(f"✅ Ollama iniciado (PID: {process.pid})")
+print("Logs em: /tmp/ollama.log")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Testar Conexão
 
 # COMMAND ----------
 
@@ -58,41 +100,87 @@ for i in range(10):
     try:
         response = requests.get("http://localhost:11434/api/tags", timeout=2)
         if response.status_code == 200:
-            print("✅ Ollama está rodando!")
+            print("✅ Ollama está respondendo!")
             break
     except:
         print(f"Tentativa {i+1}/10 - Aguardando Ollama iniciar...")
         time.sleep(3)
 else:
     print("❌ Ollama não respondeu após 30 segundos")
-    print("Verifique logs: %sh cat /tmp/ollama.log")
+    print("\n📋 Últimas linhas do log:")
+
+# COMMAND ----------
+
+# Ver últimas linhas do log
+print("📋 LOG DO OLLAMA:")
+print("=" * 80)
+
+# COMMAND ----------
+
+# MAGIC %sh
+# MAGIC tail -30 /tmp/ollama.log
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Baixar Modelo Phi-4 14B
+# MAGIC ## 5. Baixar Modelo Phi-4 14B
 # MAGIC 
 # MAGIC **Download: ~8GB, pode demorar 10-15 minutos**
 
 # COMMAND ----------
 
-# MAGIC %sh
-# MAGIC ollama pull phi4:14b
+import subprocess
+import os
+
+# Garantir PATH
+os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
+
+print("Baixando Phi-4 14B (isso vai demorar ~10-15 min)...")
+print("=" * 80)
+
+result = subprocess.run(
+    [os.path.expanduser('~/.local/bin/ollama'), 'pull', 'phi4:14b'],
+    capture_output=True,
+    text=True,
+    env=os.environ
+)
+
+print(result.stdout)
+if result.returncode == 0:
+    print("=" * 80)
+    print("✅ Phi-4 14B baixado com sucesso!")
+else:
+    print("=" * 80)
+    print("❌ Erro ao baixar Phi-4:")
+    print(result.stderr)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Listar Modelos Instalados
+# MAGIC ## 6. Listar Modelos Instalados
 
 # COMMAND ----------
 
-# MAGIC %sh
-# MAGIC ollama list
+import subprocess
+import os
+
+os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
+
+result = subprocess.run(
+    [os.path.expanduser('~/.local/bin/ollama'), 'list'],
+    capture_output=True,
+    text=True,
+    env=os.environ
+)
+
+print("📦 MODELOS INSTALADOS:")
+print("=" * 80)
+print(result.stdout)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Testar Modelo Phi-4
+# MAGIC ## 7. Testar Modelo Phi-4
 
 # COMMAND ----------
 
@@ -121,6 +209,7 @@ try:
         result = response.json()
         print("✅ Phi-4 funcionando!")
         print(f"Resposta: {result['response']}")
+        print(f"Tokens gerados: {result.get('eval_count', 'N/A')}")
     else:
         print(f"❌ Erro: {response.status_code}")
         print(response.text)
@@ -131,7 +220,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Teste com JSON Estruturado
+# MAGIC ## 8. Teste com JSON Estruturado
 
 # COMMAND ----------
 
@@ -179,43 +268,51 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Verificação Final
+# MAGIC ## 9. Verificação Final
 
 # COMMAND ----------
 
 import requests
+import os
 
 print("=" * 80)
 print("VERIFICAÇÃO FINAL - OLLAMA + PHI-4")
 print("=" * 80)
 
-# 1. Serviço rodando?
+# 1. Ollama instalado?
+ollama_path = os.path.expanduser('~/.local/bin/ollama')
+if os.path.exists(ollama_path):
+    print(f"✅ Ollama: Instalado em {ollama_path}")
+else:
+    print("❌ Ollama: Binário não encontrado")
+
+# 2. Serviço rodando?
 try:
     response = requests.get("http://localhost:11434/api/tags", timeout=5)
     if response.status_code == 200:
-        print("✅ Ollama: Rodando")
+        print("✅ Ollama: Serviço rodando")
         modelos = response.json()["models"]
         print(f"   Modelos instalados: {len(modelos)}")
         for m in modelos:
-            print(f"   - {m['name']} ({m['size'] / 1e9:.1f} GB)")
+            size_gb = m.get('size', 0) / 1e9
+            print(f"   - {m['name']} ({size_gb:.1f} GB)")
     else:
-        print("❌ Ollama: Erro de conexão")
+        print("❌ Ollama: Serviço não está respondendo")
 except Exception as e:
     print(f"❌ Ollama: Não acessível - {e}")
 
-# 2. Phi-4 disponível?
+# 3. Phi-4 disponível?
 try:
     response = requests.get("http://localhost:11434/api/tags", timeout=5)
     modelos = [m["name"] for m in response.json()["models"]]
     if any("phi4" in m for m in modelos):
-        print("✅ Phi-4: Instalado")
+        print("✅ Phi-4: Instalado e disponível")
     else:
         print("❌ Phi-4: Não encontrado")
-        print("   Execute: %sh ollama pull phi4:14b")
 except:
     print("❌ Phi-4: Não foi possível verificar")
 
-# 3. Geração funciona?
+# 4. Geração funciona?
 try:
     test_response = requests.post(
         "http://localhost:11434/api/generate",
@@ -231,8 +328,7 @@ except Exception as e:
 
 print("=" * 80)
 print("\n📌 PRÓXIMO PASSO:")
-print("   Execute: notebooks/01_processar_laudos.py (testes)")
-print("   Ou: notebooks/02_processar_csv_mamografia.py (produção)")
+print("   Execute: notebooks/02_processar_csv_mamografia.py (produção)")
 print("=" * 80)
 
 # COMMAND ----------
@@ -242,31 +338,73 @@ print("=" * 80)
 
 # COMMAND ----------
 
-# Ver logs do Ollama
-print("📋 ÚLTIMAS 50 LINHAS DO LOG:")
-print("=" * 80)
+# MAGIC %md
+# MAGIC ### Ver logs do Ollama
 
 # COMMAND ----------
 
 # MAGIC %sh
+# MAGIC echo "📋 ÚLTIMAS 50 LINHAS DO LOG:"
+# MAGIC echo "=========================================="
 # MAGIC tail -50 /tmp/ollama.log
 
 # COMMAND ----------
 
-# Reiniciar Ollama se necessário
-# COMANDO: Descomente e execute se precisar reiniciar
-
-# %sh
-# pkill ollama
-# nohup ollama serve > /tmp/ollama.log 2>&1 &
-# sleep 10
+# MAGIC %md
+# MAGIC ### Reiniciar Ollama (se necessário)
 
 # COMMAND ----------
 
-# Redownload do modelo se necessário
-# COMANDO: Descomente se o modelo estiver corrompido
+import subprocess
+import time
+import os
 
-# %sh
-# ollama rm phi4:14b
-# ollama pull phi4:14b
+# Configurar PATH
+os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
 
+# Matar processos
+subprocess.run(['pkill', '-f', 'ollama'], stderr=subprocess.DEVNULL)
+time.sleep(2)
+
+# Reiniciar
+process = subprocess.Popen(
+    [os.path.expanduser('~/.local/bin/ollama'), 'serve'],
+    stdout=open('/tmp/ollama.log', 'w'),
+    stderr=subprocess.STDOUT,
+    env=os.environ
+)
+
+time.sleep(10)
+print(f"✅ Ollama reiniciado (PID: {process.pid})")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Redownload do modelo (se corrompido)
+
+# COMMAND ----------
+
+# import subprocess
+# import os
+# 
+# os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}"
+# 
+# # Remover modelo
+# subprocess.run([os.path.expanduser('~/.local/bin/ollama'), 'rm', 'phi4:14b'], env=os.environ)
+# 
+# # Redownload
+# subprocess.run([os.path.expanduser('~/.local/bin/ollama'), 'pull', 'phi4:14b'], env=os.environ)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## ⚠️ Importante: Persistência no Cluster
+# MAGIC 
+# MAGIC **Ollama é instalado em `/tmp/` e `~/.local/`** - esses diretórios podem ser limpos quando o cluster reinicia.
+# MAGIC 
+# MAGIC **Opções:**
+# MAGIC 1. **Reexecutar este notebook** após restart do cluster (~2 min se Phi-4 já estiver em cache)
+# MAGIC 2. **Usar Init Script** (configurar no cluster para instalar automaticamente)
+# MAGIC 3. **Usar cluster de longa duração** (não desligar entre jobs)
+# MAGIC 
+# MAGIC Para criar Init Script, veja documentação em: notebooks/README.md
