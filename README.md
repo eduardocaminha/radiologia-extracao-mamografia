@@ -15,6 +15,7 @@ Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-4)
 │   └── prompt_extracao_mamografia.md      # Prompt do LLM
 ├── notebooks/
 │   ├── README.md                          # Documentação dos notebooks
+│   ├── 00_setup_ollama_phi4.py           # Setup Ollama + Phi-4 (1x por cluster)
 │   ├── 01_processar_laudos.py            # Notebook teste/desenvolvimento
 │   └── 02_processar_csv_mamografia.py    # Notebook produção (CSV → Delta)
 ├── src/

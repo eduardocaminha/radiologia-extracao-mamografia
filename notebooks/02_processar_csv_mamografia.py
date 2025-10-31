@@ -53,6 +53,10 @@ print(f"📊 Tabela destino: {OUTPUT_TABLE}")
 
 # MAGIC %md
 # MAGIC ## 3. Inicializar Extrator Phi-4
+# MAGIC 
+# MAGIC ### ⚠️ Pré-requisito: Ollama + Phi-4 instalado
+# MAGIC 
+# MAGIC **Se ainda não instalou**, execute primeiro: `00_setup_ollama_phi4.py`
 
 # COMMAND ----------
 
@@ -61,12 +65,19 @@ import requests
 try:
     response = requests.get("http://localhost:11434/api/tags", timeout=5)
     if response.status_code == 200:
+        modelos = [m["name"] for m in response.json()["models"]]
         print("✅ Ollama rodando")
+        print(f"Modelos: {', '.join(modelos)}")
+        
+        if not any("phi4" in m for m in modelos):
+            print("\n❌ Phi-4 não encontrado!")
+            print("Execute notebook: 00_setup_ollama_phi4.py")
+            dbutils.notebook.exit("Phi-4 não instalado")
     else:
         raise Exception("Ollama não está respondendo")
 except Exception as e:
     print(f"❌ Erro Ollama: {e}")
-    print("Execute: ollama serve &")
+    print("\n📌 Execute primeiro: 00_setup_ollama_phi4.py")
     dbutils.notebook.exit("Ollama não disponível")
 
 # Inicializar extrator

@@ -2,8 +2,20 @@
 
 ## 📋 Notebooks Disponíveis
 
+### 0. `00_setup_ollama_phi4.py` 🔧
+**Executar 1x por cluster** antes de usar os outros notebooks.
+
+Instala e configura:
+- Ollama
+- Modelo Phi-4 14B
+- Testes de validação
+
+**Tempo:** ~15 minutos (download 8GB)
+
 ### 1. `01_processar_laudos.py`
 Notebook de teste e desenvolvimento para processar laudos individuais ou pequenos lotes.
+
+**Pré-requisito:** Executar `00_setup_ollama_phi4.py` primeiro
 
 **Uso:**
 - Testar o sistema com laudos de exemplo
@@ -13,6 +25,8 @@ Notebook de teste e desenvolvimento para processar laudos individuais ou pequeno
 
 ### 2. `02_processar_csv_mamografia.py` ⭐
 Notebook de produção para processar CSVs completos de mamografias.
+
+**Pré-requisito:** Executar `00_setup_ollama_phi4.py` primeiro
 
 **Input:** CSV com colunas:
 - `CD_ATENDIMENTO` (obrigatório)

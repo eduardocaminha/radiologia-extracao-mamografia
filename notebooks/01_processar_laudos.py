@@ -11,12 +11,10 @@
 
 # COMMAND ----------
 
-# Instalar Ollama (executar uma vez)
-# %sh
-# curl -fsSL https://ollama.com/install.sh | sh
-# nohup ollama serve > /tmp/ollama.log 2>&1 &
-# sleep 5
-# ollama pull phi4:14b
+# MAGIC %md
+# MAGIC ### ⚠️ Pré-requisito: Ollama + Phi-4 instalado
+# MAGIC 
+# MAGIC **Se ainda não instalou**, execute primeiro: `00_setup_ollama_phi4.py`
 
 # COMMAND ----------
 
@@ -24,15 +22,23 @@
 import requests
 
 try:
-    response = requests.get("http://localhost:11434/api/tags")
+    response = requests.get("http://localhost:11434/api/tags", timeout=5)
     if response.status_code == 200:
+        modelos = response.json()["models"]
         print("✅ Ollama está rodando")
-        print("Modelos disponíveis:", [m["name"] for m in response.json()["models"]])
+        print(f"Modelos disponíveis ({len(modelos)}):")
+        for m in modelos:
+            print(f"  - {m['name']}")
+        
+        # Verificar se Phi-4 está disponível
+        if not any("phi4" in m["name"] for m in modelos):
+            print("\n⚠️  Phi-4 não encontrado!")
+            print("Execute: 00_setup_ollama_phi4.py")
     else:
         print("❌ Ollama não está respondendo corretamente")
 except Exception as e:
     print(f"❌ Erro ao conectar: {e}")
-    print("Execute o setup do Ollama na célula anterior")
+    print("\n📌 Execute primeiro: 00_setup_ollama_phi4.py")
 
 # COMMAND ----------
 
