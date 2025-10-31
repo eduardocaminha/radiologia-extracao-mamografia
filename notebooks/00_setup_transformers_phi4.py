@@ -18,35 +18,49 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Verificar Recursos do Cluster
+# MAGIC ## 1. Verificar Arquitetura
 
 # COMMAND ----------
 
 import platform
-import psutil
-import torch
 
 print("=" * 80)
-print("RECURSOS DO CLUSTER")
+print("INFORMAÇÕES DO CLUSTER")
 print("=" * 80)
 print(f"Arquitetura: {platform.machine()}")
 print(f"Python: {platform.python_version()}")
-print(f"PyTorch: {torch.__version__}")
-print(f"CUDA disponível: {torch.cuda.is_available()}")
-print(f"")
-print(f"CPU cores: {psutil.cpu_count()}")
-print(f"RAM total: {psutil.virtual_memory().total / 1e9:.1f} GB")
-print(f"RAM disponível: {psutil.virtual_memory().available / 1e9:.1f} GB")
+print(f"Sistema: {platform.system()} {platform.release()}")
 print("=" * 80)
+
+if platform.machine() == "aarch64":
+    print("✅ ARM64 detectado - notebook otimizado para esta arquitetura")
+elif platform.machine() == "x86_64":
+    print("✅ x86_64 detectado - ótimo para este notebook")
+else:
+    print(f"⚠️  Arquitetura incomum: {platform.machine()}")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## 2. Instalar Dependências
+# MAGIC 
+# MAGIC **Isso vai instalar:**
+# MAGIC - PyTorch
+# MAGIC - Transformers
+# MAGIC - Accelerate
+# MAGIC - BitsAndBytes (quantização)
+# MAGIC - Sentencepiece (tokenização)
+# MAGIC 
+# MAGIC ⏳ **Aguarde ~2-3 minutos**
 
 # COMMAND ----------
 
-# MAGIC %pip install -q transformers>=4.40.0 accelerate>=0.25.0 bitsandbytes>=0.41.0 sentencepiece protobuf
+# MAGIC %pip install -q torch>=2.0.0 transformers>=4.40.0 accelerate>=0.25.0 bitsandbytes>=0.41.0 sentencepiece protobuf
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC **⚠️ Aguardando restart do Python...**
 
 # COMMAND ----------
 
@@ -56,7 +70,36 @@ dbutils.library.restartPython()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Configurar Cache
+# MAGIC ## 3. Verificar Instalação
+
+# COMMAND ----------
+
+import torch
+import transformers
+import platform
+import psutil
+
+print("=" * 80)
+print("VERIFICAÇÃO DE INSTALAÇÃO")
+print("=" * 80)
+print(f"✅ PyTorch: {torch.__version__}")
+print(f"✅ Transformers: {transformers.__version__}")
+print(f"✅ CUDA disponível: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"   GPU: {torch.cuda.get_device_name(0)}")
+    print(f"   VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+else:
+    print(f"   Usando: CPU ({platform.machine()})")
+print(f"")
+print(f"CPU cores: {psutil.cpu_count()}")
+print(f"RAM total: {psutil.virtual_memory().total / 1e9:.1f} GB")
+print(f"RAM disponível: {psutil.virtual_memory().available / 1e9:.1f} GB")
+print("=" * 80)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Configurar Cache
 
 # COMMAND ----------
 
@@ -76,7 +119,7 @@ print(f"✅ Cache configurado em: {cache_dir}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Baixar Phi-4 (Quantizado)
+# MAGIC ## 5. Baixar Phi-3.5 Mini (Quantizado)
 # MAGIC 
 # MAGIC **Baixando modelo quantizado (4-bit) para economizar RAM**
 # MAGIC 
@@ -142,7 +185,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Testar Geração Simples
+# MAGIC ## 6. Testar Geração Simples
 
 # COMMAND ----------
 
@@ -182,7 +225,7 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Teste com Extração de JSON
+# MAGIC ## 7. Teste com Extração de JSON
 
 # COMMAND ----------
 
@@ -236,7 +279,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Criar Função Helper
+# MAGIC ## 8. Criar Função Helper
 
 # COMMAND ----------
 
@@ -281,7 +324,7 @@ print(test_result[:200])
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Salvar Modelo no DBFS (Opcional)
+# MAGIC ## 9. Salvar Modelo no DBFS (Opcional)
 # MAGIC 
 # MAGIC Para não precisar baixar novamente
 
@@ -303,7 +346,7 @@ print(test_result[:200])
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Verificação Final
+# MAGIC ## 10. Verificação Final
 
 # COMMAND ----------
 
