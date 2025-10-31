@@ -15,29 +15,68 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Baixar Ollama (Instalação Local)
+# MAGIC ## 1. Verificar Arquitetura do Sistema
 
 # COMMAND ----------
 
 # MAGIC %sh
-# MAGIC # Criar diretório local
-# MAGIC mkdir -p /tmp/ollama_install
-# MAGIC cd /tmp/ollama_install
-# MAGIC 
-# MAGIC # Baixar binário
-# MAGIC curl -L https://ollama.com/download/ollama-linux-amd64 -o ollama
-# MAGIC chmod +x ollama
-# MAGIC 
-# MAGIC # Criar link em path local
-# MAGIC mkdir -p ~/.local/bin
-# MAGIC cp ollama ~/.local/bin/ollama
-# MAGIC 
-# MAGIC echo "✅ Ollama baixado para ~/.local/bin/ollama"
+# MAGIC echo "🔍 Verificando arquitetura do sistema:"
+# MAGIC uname -m
+# MAGIC uname -a
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Configurar PATH
+# MAGIC ## 2. Baixar Ollama (Instalação Local)
+
+# COMMAND ----------
+
+# MAGIC %sh
+# MAGIC # Detectar arquitetura
+# MAGIC ARCH=$(uname -m)
+# MAGIC echo "Arquitetura detectada: $ARCH"
+# MAGIC 
+# MAGIC # Criar diretório local
+# MAGIC mkdir -p ~/.local/bin
+# MAGIC cd ~/.local/bin
+# MAGIC 
+# MAGIC # Baixar binário correto para arquitetura
+# MAGIC if [ "$ARCH" = "x86_64" ]; then
+# MAGIC     echo "Baixando Ollama para x86_64 (AMD64)..."
+# MAGIC     curl -L https://ollama.com/download/ollama-linux-amd64 -o ollama
+# MAGIC elif [ "$ARCH" = "aarch64" ]; then
+# MAGIC     echo "Baixando Ollama para ARM64..."
+# MAGIC     curl -L https://ollama.com/download/ollama-linux-arm64 -o ollama
+# MAGIC else
+# MAGIC     echo "❌ Arquitetura não suportada: $ARCH"
+# MAGIC     exit 1
+# MAGIC fi
+# MAGIC 
+# MAGIC # Verificar download
+# MAGIC echo ""
+# MAGIC echo "Arquivo baixado:"
+# MAGIC ls -lh ollama
+# MAGIC file ollama
+# MAGIC 
+# MAGIC # Tornar executável
+# MAGIC chmod +x ollama
+# MAGIC 
+# MAGIC # Verificar se é executável válido
+# MAGIC if ./ollama --version 2>/dev/null; then
+# MAGIC     echo "✅ Ollama instalado com sucesso!"
+# MAGIC else
+# MAGIC     echo "❌ Arquivo não é executável válido"
+# MAGIC     echo "Tentando método alternativo..."
+# MAGIC     
+# MAGIC     # Método alternativo: usar script de instalação modificado
+# MAGIC     rm -f ollama
+# MAGIC     curl -fsSL https://ollama.com/install.sh | sed 's/sudo //g' | bash
+# MAGIC fi
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 3. Configurar PATH
 
 # COMMAND ----------
 
@@ -46,16 +85,20 @@ os.environ['PATH'] = f"{os.path.expanduser('~/.local/bin')}:{os.environ['PATH']}
 
 # Testar
 import subprocess
-result = subprocess.run(['which', 'ollama'], capture_output=True, text=True)
+result = subprocess.run(['which', 'ollama'], capture_output=True, text=True, env=os.environ)
 if result.returncode == 0:
     print(f"✅ Ollama encontrado em: {result.stdout.strip()}")
+    # Verificar versão
+    version_result = subprocess.run(['ollama', '--version'], capture_output=True, text=True, env=os.environ)
+    print(f"Versão: {version_result.stdout.strip()}")
 else:
     print("❌ Ollama não encontrado no PATH")
+    print("Execute a célula anterior novamente")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Iniciar Serviço Ollama
+# MAGIC ## 4. Iniciar Serviço Ollama
 
 # COMMAND ----------
 
@@ -88,7 +131,7 @@ print("Logs em: /tmp/ollama.log")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Testar Conexão
+# MAGIC ## 5. Testar Conexão
 
 # COMMAND ----------
 
@@ -123,7 +166,7 @@ print("=" * 80)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Baixar Modelo Phi-4 14B
+# MAGIC ## 6. Baixar Modelo Phi-4 14B
 # MAGIC 
 # MAGIC **Download: ~8GB, pode demorar 10-15 minutos**
 
@@ -157,7 +200,7 @@ else:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. Listar Modelos Instalados
+# MAGIC ## 7. Listar Modelos Instalados
 
 # COMMAND ----------
 
@@ -180,7 +223,7 @@ print(result.stdout)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 7. Testar Modelo Phi-4
+# MAGIC ## 8. Testar Modelo Phi-4
 
 # COMMAND ----------
 
@@ -220,7 +263,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 8. Teste com JSON Estruturado
+# MAGIC ## 9. Teste com JSON Estruturado
 
 # COMMAND ----------
 
@@ -268,7 +311,7 @@ except Exception as e:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 9. Verificação Final
+# MAGIC ## 10. Verificação Final
 
 # COMMAND ----------
 
