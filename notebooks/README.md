@@ -2,20 +2,24 @@
 
 ## 📋 Notebooks Disponíveis
 
-### 0. `00_setup_ollama_phi4.py` 🔧
+### 0. `00_setup_transformers_phi4.py` 🔧
 **Executar 1x por cluster** antes de usar os outros notebooks.
 
 Instala e configura:
-- Ollama
-- Modelo Phi-4 14B
+- Transformers + Accelerate + BitsAndBytes
+- Modelo Phi-3.5 Mini (quantizado 4-bit)
 - Testes de validação
 
-**Tempo:** ~15 minutos (download 8GB)
+**Tempo:** ~20-30 minutos (download modelo)
+
+**Funciona em:**
+- ✅ CPU (ARM64 / x86_64) - lento mas funcional
+- ✅ GPU (NVIDIA) - 10-20x mais rápido
 
 ### 1. `01_processar_laudos.py`
 Notebook de teste e desenvolvimento para processar laudos individuais ou pequenos lotes.
 
-**Pré-requisito:** Executar `00_setup_ollama_phi4.py` primeiro
+**Pré-requisito:** Executar `00_setup_transformers_phi4.py` primeiro
 
 **Uso:**
 - Testar o sistema com laudos de exemplo
@@ -26,7 +30,7 @@ Notebook de teste e desenvolvimento para processar laudos individuais ou pequeno
 ### 2. `02_processar_csv_mamografia.py` ⭐
 Notebook de produção para processar CSVs completos de mamografias.
 
-**Pré-requisito:** Executar `00_setup_ollama_phi4.py` primeiro
+**Pré-requisito:** Executar `00_setup_transformers_phi4.py` primeiro
 
 **Input:** CSV com colunas:
 - `CD_ATENDIMENTO` (obrigatório)
@@ -45,50 +49,30 @@ Notebook de produção para processar CSVs completos de mamografias.
 - Anotações da LLM
 - Erros de validação (se houver)
 
-## 🚀 Como Usar `02_processar_csv_mamografia.py`
-
-### Pré-requisitos
-
-1. **Ollama + Phi-4 rodando:**
-```bash
-# No Databricks cluster
-%sh
-curl -fsSL https://ollama.com/install.sh | sh
-nohup ollama serve > /tmp/ollama.log 2>&1 &
-ollama pull phi4:14b
-```
-
-2. **Projeto clonado no Workspace:**
-```bash
-%sh
-cd /Workspace/Users/seu_usuario/
-git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
-```
+## 🚀 Como Usar no Databricks
 
 ### Passo a Passo
 
-1. **Abrir notebook no Databricks**
-   - Workspace → Import → `02_processar_csv_mamografia.py`
+1. **Clonar repositório**
+```bash
+%sh
+cd /Workspace/Repos/<seu_usuario>/
+git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
+```
 
-2. **Configurar parâmetros** (Seção 2):
+2. **Setup modelo (1x por cluster)**
+   - Executar: `00_setup_transformers_phi4.py`
+   - Aguardar: ~20-30 minutos (download)
+
+3. **Configurar `02_processar_csv_mamografia.py`**
 ```python
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-BATCH_SIZE = 100
+BATCH_SIZE = 10  # CPU: 5-10, GPU: 50-100
 ```
 
-3. **Atualizar paths** (Seção 1 e 3):
-```python
-sys.path.append("/Workspace/Users/SEU_USUARIO/radiologia-extracao-mamografia")
-
-extractor = LaudoExtractor(
-    template_path="/Workspace/Users/SEU_USUARIO/radiologia-extracao-mamografia/config/template.json",
-    prompt_path="/Workspace/Users/SEU_USUARIO/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
-)
-```
-
-4. **Executar todas as células**
-   - Run All (Shift + Ctrl + Enter)
+4. **Executar**
+   - Run All (Ctrl + Shift + Enter)
 
 ### Output
 
@@ -148,48 +132,45 @@ ORDER BY birads DESC, confianca_media ASC
 
 ## 🔧 Troubleshooting
 
-### Erro: "Ollama não disponível"
-```bash
-# Verificar se está rodando
-%sh
-curl http://localhost:11434/api/tags
-
-# Se não estiver, iniciar
-%sh
-nohup ollama serve > /tmp/ollama.log 2>&1 &
-sleep 5
-ollama list
-```
-
-### Erro: "Modelo phi4:14b não encontrado"
-```bash
-%sh
-ollama pull phi4:14b
-ollama list
-```
-
-### Erro: Memória insuficiente
-Ajustar `BATCH_SIZE` para valor menor:
+### Erro: Modelo não carrega (RAM insuficiente)
 ```python
-BATCH_SIZE = 50  # ou 25 para clusters menores
+# No notebook 00_setup, trocar quantização:
+model = AutoModelForCausalLM.from_pretrained(
+    "microsoft/Phi-3.5-mini-instruct",
+    load_in_8bit=True  # Mais leve que 4bit
+)
+```
+
+### Erro: GPU não detectada
+```python
+import torch
+print(torch.cuda.is_available())
+# False = usando CPU (funciona mas é lento)
 ```
 
 ### Performance lenta
-- Usar cluster com GPU (g5.xlarge ou maior)
-- Aumentar `BATCH_SIZE` se tiver memória disponível
-- Considerar processar subset primeiro para validar
+- **CPU:** Normal, espere ~2-5 laudos/min
+- **Solução:** Pedir cluster com GPU ao time infra
+- Ajustar `BATCH_SIZE` menor (5-10)
+
+### Download travou
+```python
+# Adicionar timeout no notebook 00_setup:
+os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
+```
 
 ## 📈 Performance Esperada
 
-| Cluster | GPU | Laudos/min | Custo estimado |
-|---------|-----|-----------|----------------|
-| CPU only | - | ~5-10 | Baixo |
-| g5.xlarge | A10G | ~30-40 | Médio |
-| g5.2xlarge | A10G | ~50-60 | Alto |
+| Cluster | Hardware | Laudos/min | Uso |
+|---------|----------|-----------|-----|
+| CPU ARM64 | 4 cores | ~2-5 | Dev/Teste |
+| CPU x86 | 8 cores | ~5-10 | Dev/Teste |
+| g5.xlarge | A10G GPU | ~30-50 | Produção |
+| g4dn.xlarge | T4 GPU | ~20-30 | Produção |
 
-**Exemplo:** 10.000 laudos
-- g5.xlarge: ~4-5 horas
-- Custo: ~$10-15 (DBU + compute)
+**Exemplo:** 1.000 laudos
+- **CPU:** ~3-8 horas
+- **GPU:** ~20-50 minutos
 
 ## 📝 Validação de Qualidade
 

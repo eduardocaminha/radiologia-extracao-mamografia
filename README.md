@@ -1,6 +1,6 @@
 # Estruturação de Laudos de Mamografia
 
-Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-4) seguindo padrão científico internacional.
+Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-3.5 Mini) seguindo padrão científico internacional.
 
 [![GitHub](https://img.shields.io/badge/GitHub-radiologia--extracao--mamografia-blue)](https://github.com/eduardocaminha/radiologia-extracao-mamografia)
 
@@ -9,21 +9,14 @@ Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-4)
 ```
 .
 ├── README.md                              # Este arquivo
-├── requirements.txt                       # Dependências Python
 ├── config/
 │   ├── template.json                      # Template de estruturação
 │   └── prompt_extracao_mamografia.md      # Prompt do LLM
-├── notebooks/
-│   ├── README.md                          # Documentação dos notebooks
-│   ├── 00_setup_ollama_phi4.py           # Setup Ollama + Phi-4 (1x por cluster)
-│   ├── 01_processar_laudos.py            # Notebook teste/desenvolvimento
-│   └── 02_processar_csv_mamografia.py    # Notebook produção (CSV → Delta)
-├── src/
-│   ├── __init__.py
-│   ├── extractor.py                       # Classe principal
-│   └── validators.py                      # Validação de outputs
-└── tests/
-    └── test_extracao.py                   # Testes unitários
+└── notebooks/
+    ├── README.md                          # Documentação dos notebooks
+    ├── 00_setup_transformers_phi4.py      # Setup Transformers + Phi-3.5 (1x por cluster)
+    ├── 01_processar_laudos.py             # Notebook teste/desenvolvimento
+    └── 02_processar_csv_mamografia.py     # Notebook produção (CSV → Delta)
 ```
 
 ## 🚀 Setup no Databricks
@@ -33,168 +26,101 @@ Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-4)
 ```python
 # No Databricks Notebook
 %sh
-cd /Workspace/Users/seu_usuario/
-git clone https://github.com/seu_usuario/estruturacao-mamografia.git
-cd estruturacao-mamografia
+cd /Workspace/Repos/<seu_usuario>/
+git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
+cd radiologia-extracao-mamografia
 ```
 
-### 2. Instalar Ollama + Phi-4
+### 2. Setup Phi-3.5 Mini (CPU/GPU)
 
-```bash
-%sh
-# Instalar Ollama
-curl -fsSL https://ollama.com/install.sh | sh
+Execute o notebook: **`00_setup_transformers_phi4.py`**
 
-# Iniciar serviço (background)
-nohup ollama serve > /tmp/ollama.log 2>&1 &
+Este notebook:
+- ✅ Funciona em CPU (ARM64 ou x86_64)
+- ✅ Funciona em GPU (10-20x mais rápido)
+- ✅ Baixa Phi-3.5 Mini quantizado (4-bit)
+- ✅ ~20-30 minutos para download
 
-# Baixar Phi-4
-ollama pull phi4:14b
-```
+**Clusters suportados:**
+- CPU: Qualquer arquitetura (ARM64 / x86_64)
+- GPU: NVIDIA (g5.xlarge, g4dn.xlarge, etc.)
 
-### 3. Instalar dependências Python
+### 3. Processar laudos
+
+Execute: **`02_processar_csv_mamografia.py`**
 
 ```python
-%pip install -r requirements.txt
-```
-
-### 4. Usar no notebook
-
-```python
-from src.extractor import LaudoExtractor
-
-# Inicializar
-extractor = LaudoExtractor(
-    model="phi4:14b",
-    template_path="config/template.json",
-    prompt_path="config/prompt_extracao_mamografia.md"
-)
-
-# Processar laudo
-laudo_texto = """
-MAMOGRAFIA BILATERAL
-Técnica: FFDM, incidências CC e MLO bilaterais
-Composição: Mamas com padrão fibroglandular heterogêneo (ACR C)
-Achados: Ausência de nódulos, calcificações suspeitas ou distorções arquiteturais
-BI-RADS 1 - Negativo. Controle em 12 meses.
-"""
-
-resultado = extractor.processar(laudo_texto)
-print(resultado)
-```
-
-## 📊 Processamento em Lote (Databricks)
-
-### Opção 1: Processar CSV Direto (Recomendado)
-
-Use o notebook `02_processar_csv_mamografia.py` para processar CSVs com colunas:
-- `CD_ATENDIMENTO`, `DS_LAUDO_MEDICO`, `NM_PROCEDIMENTO`, etc.
-
-```python
-# Configurar no notebook
+# Configurar variáveis
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-BATCH_SIZE = 100
+BATCH_SIZE = 10  # CPU: 5-10, GPU: 50-100
 
-# Executar notebook (Run All)
-# Output: Delta Table com laudos estruturados + análises de qualidade
+# Executar (Run All)
 ```
 
-Ver documentação completa em: [`notebooks/README.md`](notebooks/README.md)
+## 📊 CSV Esperado
 
-### Opção 2: Processar de Delta Lake Existente
+Colunas necessárias:
+- `CD_ATENDIMENTO` - ID do atendimento
+- `DS_LAUDO_MEDICO` - Texto do laudo
+- `NM_PROCEDIMENTO` - Nome do procedimento (opcional)
 
-```python
-# Ler laudos do Delta Lake
-df_laudos = spark.table("seu_schema.laudos_mamografia")
+**Output:** Delta Table com JSON estruturado + métricas de qualidade
 
-# UDF para processar
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
-import json
-
-@udf(returnType=StringType())
-def estruturar_laudo_udf(texto):
-    try:
-        resultado = extractor.processar(texto)
-        return json.dumps(resultado, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"erro": str(e)})
-
-# Aplicar
-df_estruturado = df_laudos.withColumn(
-    "laudo_estruturado",
-    estruturar_laudo_udf("texto_laudo")
-)
-
-# Salvar
-df_estruturado.write.format("delta").mode("overwrite").saveAsTable("seu_schema.laudos_estruturados")
-```
-
-## 🔧 Configuração
-
-### Variáveis de Ambiente (opcional)
-
-```python
-import os
-os.environ["OLLAMA_HOST"] = "http://localhost:11434"
-os.environ["OLLAMA_MODEL"] = "phi4:14b"
-```
+Ver documentação completa: [`notebooks/README.md`](notebooks/README.md)
 
 ## 📝 Template e Prompt
 
 - **Template**: `config/template.json` - Estrutura JSON de saída
 - **Prompt**: `config/prompt_extracao_mamografia.md` - Instruções para o LLM
 
-## 🧪 Testes
-
-```bash
-%sh
-cd /Workspace/Users/seu_usuario/estruturacao-mamografia
-python -m pytest tests/ -v
-```
-
 ## 📈 Performance Esperada
 
-- **Precisão**: ~90-93% (Phi-4)
-- **Velocidade**: ~2-3 laudos/segundo (GPU T4)
-- **Taxa de erro**: <5%
+### CPU (seu cluster atual)
+- **Velocidade**: ~2-5 laudos/minuto
+- **RAM**: ~3-4GB por worker
+- **Uso**: Desenvolvimento, testes, lotes pequenos
+
+### GPU (recomendado para produção)
+- **Velocidade**: ~30-50 laudos/minuto
+- **RAM**: ~6-8GB VRAM
+- **Clusters**: g5.xlarge, g4dn.xlarge
 
 ## 🔍 Validação de Qualidade
 
-O sistema inclui validação automática:
+Output do notebook `02_processar_csv_mamografia.py`:
 - ✅ JSON válido
 - ✅ Campos obrigatórios presentes
 - ✅ Valores dentro do domínio permitido
-- ✅ Confiança do modelo (0.0-1.0)
+- ✅ Scores de confiança (0.0-1.0)
+- ✅ Estatísticas por categoria BI-RADS
 
 ## 📚 Referências
 
-Template baseado em: "Preparation of a radiology department in an Italian Hospital dedicated to COVID-19 patients" - Radiol Med. 2020
+Template baseado em padrão científico internacional de estruturação de laudos mamográficos.
 
 ## 🆘 Troubleshooting
 
-### Ollama não inicia
-```bash
-%sh
-ps aux | grep ollama
-# Se não estiver rodando:
-ollama serve &
-```
-
-### Modelo não encontrado
-```bash
-%sh
-ollama list
-# Se phi4 não aparecer:
-ollama pull phi4:14b
+### Modelo não carrega (RAM insuficiente)
+```python
+# Use versão menor ou quantização maior
+model = AutoModelForCausalLM.from_pretrained(
+    "microsoft/Phi-3.5-mini-instruct",
+    load_in_8bit=True  # Ao invés de 4bit
+)
 ```
 
 ### GPU não detectada
 ```python
 import torch
 print(torch.cuda.is_available())
-# Se False, verificar cluster Databricks (precisa GPU runtime)
+# Se False: está usando CPU (funcional mas mais lento)
+```
+
+### Download muito lento
+```python
+# Usar mirror brasileiro (opcional)
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 ```
 
 ## 📧 Contato
