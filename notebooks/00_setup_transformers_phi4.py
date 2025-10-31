@@ -55,7 +55,7 @@ else:
 
 # COMMAND ----------
 
-# MAGIC %pip install -q torch>=2.0.0 transformers>=4.40.0 accelerate>=0.25.0 bitsandbytes>=0.41.0 sentencepiece protobuf
+# MAGIC %pip install -q torch>=2.0.0 transformers>=4.46.0 accelerate>=0.25.0 bitsandbytes>=0.41.0 sentencepiece protobuf
 
 # COMMAND ----------
 
@@ -199,28 +199,46 @@ inputs = tokenizer(prompt, return_tensors="pt")
 
 # Gerar resposta
 print("Gerando resposta...")
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=10,
-        temperature=0.1,
-        do_sample=True
-    )
-
-# Decodificar
-response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-print("=" * 80)
-print("TESTE DE GERAÇÃO")
-print("=" * 80)
-print(f"Prompt: {prompt}")
-print(f"Resposta: {response}")
-print("=" * 80)
-
-if "OK" in response.upper():
-    print("✅ Modelo funcionando!")
-else:
-    print("⚠️  Modelo gerou resposta, mas não exatamente 'OK'")
+try:
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=10,
+            temperature=0.1,
+            do_sample=True,
+            use_cache=False  # Desabilitar cache para evitar erro de compatibilidade
+        )
+    
+    # Decodificar
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    print("=" * 80)
+    print("TESTE DE GERAÇÃO")
+    print("=" * 80)
+    print(f"Prompt: {prompt}")
+    print(f"Resposta: {response}")
+    print("=" * 80)
+    
+    if "OK" in response.upper():
+        print("✅ Modelo funcionando!")
+    else:
+        print("⚠️  Modelo gerou resposta, mas não exatamente 'OK'")
+        
+except Exception as e:
+    print(f"❌ Erro na geração: {e}")
+    print("\n💡 Tentando novamente com configurações alternativas...")
+    
+    # Fallback: sem sampling
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=10,
+            do_sample=False,
+            use_cache=False
+        )
+    
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    print(f"✅ Resposta (fallback): {response}")
 
 # COMMAND ----------
 
@@ -249,7 +267,8 @@ with torch.no_grad():
         **inputs,
         max_new_tokens=100,
         temperature=0.1,
-        do_sample=True
+        do_sample=True,
+        use_cache=False
     )
 
 response = tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -305,7 +324,8 @@ def gerar_json_estruturado(prompt: str, max_tokens: int = 4096) -> str:
             temperature=0.1,
             do_sample=True,
             top_p=0.95,
-            repetition_penalty=1.1
+            repetition_penalty=1.1,
+            use_cache=False  # Evitar erro de cache
         )
     
     # Decodificar
@@ -379,7 +399,7 @@ print(f"📊 RAM disponível: {mem.available / 1e9:.1f} GB / {mem.total / 1e9:.1
 try:
     inputs = tokenizer("teste", return_tensors="pt")
     with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=5)
+        outputs = model.generate(**inputs, max_new_tokens=5, use_cache=False)
     print("✅ Geração: Funcionando")
 except Exception as e:
     print(f"❌ Geração: Erro - {e}")
