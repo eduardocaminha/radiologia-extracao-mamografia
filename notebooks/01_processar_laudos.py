@@ -7,13 +7,15 @@
 # MAGIC Este notebook usa **Databricks Foundation Models** (serving endpoints).
 # MAGIC Não precisa de setup ou instalação - modelos já estão disponíveis no workspace.
 # MAGIC 
-# MAGIC **Modelos disponíveis:**
-# MAGIC - `databricks-meta-llama-3-1-8b-instruct` ← Rápido (~0.2s/laudo)
-# MAGIC - `databricks-meta-llama-3-3-70b-instruct` ← Mais preciso (~0.8s/laudo)
+# MAGIC **Modelo configurado:**
+# MAGIC - `databricks-meta-llama-3-3-70b-instruct` ← **Padrão** (~0.8s/laudo, 70B parâmetros)
+# MAGIC 
+# MAGIC **Alternativas:**
+# MAGIC - `databricks-meta-llama-3-1-8b-instruct` ← Mais rápido (~0.2s/laudo, menos preciso)
 # MAGIC 
 # MAGIC **Performance testada:**
-# MAGIC - ✅ JSON válido
-# MAGIC - ✅ 0.17s por laudo (Llama 3.1 8B)
+# MAGIC - ✅ JSON válido 100%
+# MAGIC - ✅ Llama 3.3 70B: 0.80s/laudo, maior precisão
 # MAGIC - ✅ Extração precisa de BI-RADS, ACR, achados
 
 # COMMAND ----------
@@ -24,13 +26,13 @@
 # COMMAND ----------
 
 # Configurações
-ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"  # Rápido e eficiente
+ENDPOINT_NAME = "databricks-meta-llama-3-3-70b-instruct"  # Mais preciso (70B parâmetros)
 TEMPERATURE = 0.1  # Baixa = mais determinístico
 MAX_TOKENS = 4096  # Máximo para JSON estruturado
 
 # Paths (ajustar se necessário)
-TEMPLATE_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/template.json"
-PROMPT_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
+TEMPLATE_PATH = "/Workspace/Innovation/t_eduardo.caminha/radiologia-extracao-mamografia/config/template.json"
+PROMPT_PATH = "/Workspace/Innovation/t_eduardo.caminha/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
 
 print("=" * 80)
 print("CONFIGURAÇÃO")

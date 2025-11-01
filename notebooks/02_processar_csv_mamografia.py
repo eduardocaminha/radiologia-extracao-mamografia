@@ -9,9 +9,11 @@
 # MAGIC - **Spark UDFs** para processamento paralelo
 # MAGIC - **Delta Tables** para armazenamento estruturado
 # MAGIC 
-# MAGIC **Performance:**
-# MAGIC - Llama 3.1 8B: ~300-350 laudos/minuto (~5-6/segundo)
-# MAGIC - Llama 3.3 70B: ~60-120 laudos/minuto (~1-2/segundo)
+# MAGIC **Modelo configurado:**
+# MAGIC - Llama 3.3 70B: ~75 laudos/minuto (~0.8s/laudo, 70B parâmetros)
+# MAGIC 
+# MAGIC **Alternativa (mais rápido, menos preciso):**
+# MAGIC - Llama 3.1 8B: ~350 laudos/minuto (~0.2s/laudo, 8B parâmetros)
 # MAGIC 
 # MAGIC **Output:** Delta Table com laudos estruturados + análises de qualidade
 
@@ -27,16 +29,16 @@ CSV_PATH = "/caminho/para/seu/arquivo.csv"  # ← AJUSTAR
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"  # ← AJUSTAR
 
 # Modelo
-ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"  # ou databricks-meta-llama-3-3-70b-instruct
+ENDPOINT_NAME = "databricks-meta-llama-3-3-70b-instruct"  # Mais preciso (70B parâmetros)
 TEMPERATURE = 0.1
 MAX_TOKENS = 4096
 
 # Processamento
 BATCH_SIZE = 100  # Processar em lotes de N laudos
 
-# Paths (ajustar se necessário)
-TEMPLATE_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/template.json"
-PROMPT_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
+# Paths
+TEMPLATE_PATH = "/Workspace/Innovation/t_eduardo.caminha/radiologia-extracao-mamografia/config/template.json"
+PROMPT_PATH = "/Workspace/Innovation/t_eduardo.caminha/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
 
 print("=" * 80)
 print("CONFIGURAÇÃO")

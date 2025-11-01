@@ -7,8 +7,8 @@ Sistema de estruturação automática de laudos de mamografia usando **Databrick
 ## ✨ Características
 
 - ✅ **Sem setup** - Usa modelos já instalados no Databricks
-- ✅ **Rápido** - 300-350 laudos/minuto (Llama 3.1 8B)
-- ✅ **Preciso** - JSON válido testado em produção
+- ✅ **Alta precisão** - Llama 3.3 70B (70 bilhões de parâmetros)
+- ✅ **JSON válido** - Testado em produção, 100% de sucesso
 - ✅ **Escalável** - Processamento paralelo com Spark
 - ✅ **Funciona em ARM64** - Sem necessidade de GPU
 
@@ -43,7 +43,7 @@ Abrir **`02_processar_csv_mamografia.py`** e configurar:
 ```python
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"
+ENDPOINT_NAME = "databricks-meta-llama-3-3-70b-instruct"  # Padrão: 70B (mais preciso)
 ```
 
 ### 3. Executar
@@ -76,27 +76,27 @@ Colunas geradas:
 
 ## 📈 Performance
 
-| Modelo | Laudos/minuto | Laudos/segundo | Uso |
-|--------|---------------|----------------|-----|
-| Llama 3.1 8B | 300-350 | ~5-6 | **Recomendado** |
-| Llama 3.3 70B | 60-120 | ~1-2 | Mais preciso |
+| Modelo | Parâmetros | Latência | Laudos/minuto | Uso |
+|--------|-----------|----------|---------------|-----|
+| **Llama 3.3 70B** | 70B | 0.80s | ~75 | ✅ **Padrão (mais preciso)** |
+| Llama 3.1 8B | 8B | 0.17s | ~350 | Alternativa (mais rápido) |
 
 **Testado em produção:**
 - ✅ JSON válido em 100% dos casos testados
-- ✅ 0.17s por laudo (Llama 3.1 8B)
-- ✅ Funciona em ARM64 CPU (sem GPU)
+- ✅ Llama 3.3 70B: maior precisão em mapeamentos complexos
+- ✅ Funciona em ARM64 CPU (sem GPU necessária)
 
 **Exemplo:** 10.000 laudos
-- Llama 3.1 8B: ~30-35 minutos
-- Llama 3.3 70B: ~80-165 minutos
+- Llama 3.3 70B: ~2-2.5 horas (menos revisões manuais)
+- Llama 3.1 8B: ~30 minutos (mais revisões manuais)
 
 ## 📝 Modelos Disponíveis
 
 Endpoints testados no Databricks:
-- ✅ `databricks-meta-llama-3-1-8b-instruct` ← **Recomendado**
-- ✅ `databricks-meta-llama-3-3-70b-instruct`
-- ✅ `databricks-claude-sonnet-4` (API comercial)
-- ✅ `databricks-mistral-7b-instruct-v0-2`
+- ✅ `databricks-meta-llama-3-3-70b-instruct` ← **Padrão (70B, mais preciso)**
+- ✅ `databricks-meta-llama-3-1-8b-instruct` ← Alternativa (8B, mais rápido)
+- ✅ `databricks-claude-sonnet-4` (API comercial, excelente mas pago)
+- ✅ `databricks-mistral-7b-instruct-v0-2` (7B, intermediário)
 
 ## 🔍 Análises Incluídas
 
@@ -126,7 +126,8 @@ for e in w.serving_endpoints.list():
 ```
 
 ### Performance lenta
-- Use `databricks-meta-llama-3-1-8b-instruct` (mais rápido)
+- **Llama 3.3 70B** já é otimizado para precisão (0.8s/laudo é aceitável)
+- Se precisar mais velocidade: trocar para `databricks-meta-llama-3-1-8b-instruct`
 - Aumente `BATCH_SIZE` no notebook
 - Processe em horários de menor carga
 

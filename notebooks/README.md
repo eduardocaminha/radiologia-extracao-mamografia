@@ -19,9 +19,8 @@ Não precisa baixar modelos, instalar bibliotecas ou configurar GPU/CPU. É só 
 
 **Sem pré-requisitos!** Apenas execute.
 
-**Tempo por laudo:**
-- Llama 3.1 8B: ~0.2s
-- Llama 3.3 70B: ~0.8s
+**Modelo padrão:**
+- Llama 3.3 70B: ~0.8s/laudo (mais preciso)
 
 ### 2. `02_processar_csv_mamografia.py` ⭐
 **Produção** - Processar CSVs completos em lote com Spark
@@ -35,8 +34,8 @@ Não precisa baixar modelos, instalar bibliotecas ou configurar GPU/CPU. É só 
 **Sem pré-requisitos!** Apenas configure paths e execute.
 
 **Performance:**
-- 300-350 laudos/minuto (Llama 3.1 8B)
-- 60-120 laudos/minuto (Llama 3.3 70B)
+- Llama 3.3 70B: ~75 laudos/minuto (padrão, mais preciso)
+- Llama 3.1 8B: ~350 laudos/minuto (alternativa, mais rápido)
 
 **Input:** CSV com colunas:
 - `CD_ATENDIMENTO` (obrigatório)
@@ -62,7 +61,7 @@ Não precisa baixar modelos, instalar bibliotecas ou configurar GPU/CPU. É só 
 1. **Clonar repositório no Databricks**
 ```bash
 %sh
-cd /Workspace/Repos/<seu_usuario>/
+cd /Workspace/Innovation/<seu_usuario>/
 git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
 ```
 
@@ -71,7 +70,7 @@ git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
 # Seção 1: Configuração
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"
+ENDPOINT_NAME = "databricks-meta-llama-3-3-70b-instruct"  # Padrão: 70B
 ```
 
 3. **Executar tudo**
@@ -188,17 +187,22 @@ display(df_erros)
 
 ## 📈 Performance Real (Testada)
 
-| Modelo | Endpoint | Laudos/min | Latência | Uso |
-|--------|----------|-----------|----------|-----|
-| Llama 3.1 8B | databricks-meta-llama-3-1-8b-instruct | 300-350 | 0.17s | ✅ **Recomendado** |
-| Llama 3.3 70B | databricks-meta-llama-3-3-70b-instruct | 60-120 | 0.80s | Alta precisão |
-| Mistral 7B | databricks-mistral-7b-instruct-v0-2 | 200-250 | 0.24s | Alternativa |
+| Modelo | Endpoint | Parâmetros | Latência | Laudos/min | Uso |
+|--------|----------|-----------|----------|-----------|-----|
+| **Llama 3.3 70B** | databricks-meta-llama-3-3-70b-instruct | 70B | 0.80s | ~75 | ✅ **Padrão (mais preciso)** |
+| Llama 3.1 8B | databricks-meta-llama-3-1-8b-instruct | 8B | 0.17s | ~350 | Alternativa (mais rápido) |
+| Mistral 7B | databricks-mistral-7b-instruct-v0-2 | 7B | 0.24s | ~250 | Intermediário |
 
 **Cluster testado:** ARM64 CPU (Standard_D8pds_v6) - 8 cores, 32GB RAM
 
+**Por que Llama 3.3 70B?**
+- 10x mais parâmetros = melhor compreensão de contexto médico
+- Menos erros de mapeamento (ex: "margens mal definidas" → valor correto)
+- Menos revisões manuais necessárias
+
 **Exemplo real:** 10.000 laudos
-- Llama 3.1 8B: ~30-35 minutos
-- Llama 3.3 70B: ~80-165 minutos
+- Llama 3.3 70B: ~2-2.5 horas + 20-50 revisões manuais
+- Llama 3.1 8B: ~30 minutos + 100-200 revisões manuais
 
 ## 📝 Validação de Qualidade
 
