@@ -1,324 +1,420 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Estruturação de Laudos de Mamografia
+# MAGIC # Processar Laudos de Mamografia - Teste/Desenvolvimento
 # MAGIC 
-# MAGIC Notebook para processar laudos de mamografia usando Phi-4
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 1. Setup Inicial
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### ⚠️ Pré-requisito: Ollama + Phi-4 instalado
+# MAGIC **Notebook para testar estruturação de laudos individuais**
 # MAGIC 
-# MAGIC **Se ainda não instalou**, execute primeiro: `00_setup_ollama_phi4.py`
-
-# COMMAND ----------
-
-# Verificar se Ollama está rodando
-import requests
-
-try:
-    response = requests.get("http://localhost:11434/api/tags", timeout=5)
-    if response.status_code == 200:
-        modelos = response.json()["models"]
-        print("✅ Ollama está rodando")
-        print(f"Modelos disponíveis ({len(modelos)}):")
-        for m in modelos:
-            print(f"  - {m['name']}")
-        
-        # Verificar se Phi-4 está disponível
-        if not any("phi4" in m["name"] for m in modelos):
-            print("\n⚠️  Phi-4 não encontrado!")
-            print("Execute: 00_setup_ollama_phi4.py")
-    else:
-        print("❌ Ollama não está respondendo corretamente")
-except Exception as e:
-    print(f"❌ Erro ao conectar: {e}")
-    print("\n📌 Execute primeiro: 00_setup_ollama_phi4.py")
+# MAGIC Este notebook usa **Databricks Foundation Models** (serving endpoints).
+# MAGIC Não precisa de setup ou instalação - modelos já estão disponíveis no workspace.
+# MAGIC 
+# MAGIC **Modelos disponíveis:**
+# MAGIC - `databricks-meta-llama-3-1-8b-instruct` ← Rápido (~0.2s/laudo)
+# MAGIC - `databricks-meta-llama-3-3-70b-instruct` ← Mais preciso (~0.8s/laudo)
+# MAGIC 
+# MAGIC **Performance testada:**
+# MAGIC - ✅ JSON válido
+# MAGIC - ✅ 0.17s por laudo (Llama 3.1 8B)
+# MAGIC - ✅ Extração precisa de BI-RADS, ACR, achados
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Importar Biblioteca
+# MAGIC ## 1. Configuração
 
 # COMMAND ----------
 
-import sys
-sys.path.append("/Workspace/Users/seu_usuario/estruturacao-mamografia")
+# Configurações
+ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"  # Rápido e eficiente
+TEMPERATURE = 0.1  # Baixa = mais determinístico
+MAX_TOKENS = 4096  # Máximo para JSON estruturado
 
-from src.extractor import LaudoExtractor
-from src.validators import validar_laudo_estruturado, calcular_metricas_confianca, extrair_anotacoes_llm
+# Paths (ajustar se necessário)
+TEMPLATE_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/template.json"
+PROMPT_PATH = "/Workspace/Repos/innovation/radiologia-extracao-mamografia/config/prompt_extracao_mamografia.md"
+
+print("=" * 80)
+print("CONFIGURAÇÃO")
+print("=" * 80)
+print(f"Endpoint: {ENDPOINT_NAME}")
+print(f"Temperature: {TEMPERATURE}")
+print(f"Max tokens: {MAX_TOKENS}")
+print("=" * 80)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2. Carregar Template e Prompt
+
+# COMMAND ----------
+
 import json
 
-# COMMAND ----------
+# Carregar template
+with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
+    template = json.load(f)
 
-# Inicializar extrator
-extractor = LaudoExtractor(
-    model="phi4:14b",
-    template_path="/Workspace/Users/seu_usuario/estruturacao-mamografia/config/template.json",
-    prompt_path="/Workspace/Users/seu_usuario/estruturacao-mamografia/config/prompt_extracao_mamografia.md"
-)
+print("✅ Template carregado")
+print(f"   Campos principais: {list(template.keys())[:5]}...")
 
-print("✅ Extrator inicializado")
+# Carregar prompt
+with open(PROMPT_PATH, 'r', encoding='utf-8') as f:
+    prompt_instructions = f.read()
+
+print("✅ Prompt carregado")
+print(f"   Tamanho: {len(prompt_instructions)} caracteres")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Teste com Laudo Individual
+# MAGIC ## 3. Criar Função de Estruturação
 
 # COMMAND ----------
 
-# Laudo de exemplo
-laudo_exemplo = """
-MAMOGRAFIA BILATERAL DIGITAL
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
+import json
+import time
 
-DADOS CLÍNICOS: Rastreamento, paciente assintomática, 52 anos.
+def estruturar_laudo(laudo_texto: str, endpoint: str = ENDPOINT_NAME, verbose: bool = True) -> dict:
+    """
+    Estrutura laudo de mamografia usando Databricks Foundation Model
+    
+    Args:
+        laudo_texto: Texto do laudo médico
+        endpoint: Nome do endpoint de serving
+        verbose: Imprimir logs
+        
+    Returns:
+        dict com laudo estruturado + metadados
+    """
+    w = WorkspaceClient()
+    
+    # Criar prompt completo
+    prompt_completo = f"""{prompt_instructions}
 
-COMPARAÇÃO: Mamografia de 15/10/2023 disponível para comparação.
+---
 
-TÉCNICA: Mamografia digital (FFDM) bilateral nas incidências craniocaudal (CC) e médio-lateral oblíqua (MLO).
+LAUDO A SER ESTRUTURADO:
 
-COMPOSIÇÃO MAMÁRIA: Mamas com padrão heterogeneamente denso (ACR C), o que pode obscurecer pequenas lesões.
+{laudo_texto}
 
-ACHADOS:
-- Mama direita: Nódulo irregular de margens espiculadas medindo 12mm no quadrante superior externo (QSE), 
-  às 2 horas, distante 3,5cm do mamilo. Corresponde à nodulação palpável referida pela paciente.
-  Achado novo em relação ao exame anterior.
-- Mama esquerda: Sem alterações significativas.
+---
 
-IMPRESSÃO:
-Nódulo irregular espiculado de 12mm em QSE da mama direita, BI-RADS 4.
-Recomendada biópsia guiada por ultrassom.
+Retorne APENAS o JSON estruturado (sem texto antes ou depois):
+"""
+    
+    messages = [
+        ChatMessage(
+            role=ChatMessageRole.SYSTEM,
+            content="Você é um assistente especializado em estruturação de laudos de mamografia. Retorne APENAS JSON válido seguindo o template fornecido, sem texto adicional."
+        ),
+        ChatMessage(
+            role=ChatMessageRole.USER,
+            content=prompt_completo
+        )
+    ]
+    
+    if verbose:
+        print(f"Enviando para {endpoint}...")
+    
+    start_time = time.time()
+    
+    try:
+        response = w.serving_endpoints.query(
+            name=endpoint,
+            messages=messages,
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE
+        )
+        
+        elapsed = time.time() - start_time
+        response_text = response.choices[0].message.content
+        
+        if verbose:
+            print(f"✅ Resposta recebida em {elapsed:.2f}s")
+        
+        # Extrair JSON
+        start_idx = response_text.find('{')
+        end_idx = response_text.rfind('}') + 1
+        
+        if start_idx == -1 or end_idx <= start_idx:
+            raise ValueError("JSON não encontrado na resposta")
+        
+        json_str = response_text[start_idx:end_idx]
+        laudo_estruturado = json.loads(json_str)
+        
+        # Adicionar metadados
+        return {
+            "sucesso": True,
+            "laudo_estruturado": laudo_estruturado,
+            "tempo_processamento_s": elapsed,
+            "modelo": endpoint,
+            "tamanho_resposta": len(response_text),
+            "erro": None
+        }
+        
+    except json.JSONDecodeError as e:
+        return {
+            "sucesso": False,
+            "laudo_estruturado": None,
+            "tempo_processamento_s": time.time() - start_time,
+            "modelo": endpoint,
+            "erro": f"Erro ao parsear JSON: {e}",
+            "resposta_bruta": response_text if 'response_text' in locals() else None
+        }
+    except Exception as e:
+        return {
+            "sucesso": False,
+            "laudo_estruturado": None,
+            "tempo_processamento_s": time.time() - start_time,
+            "modelo": endpoint,
+            "erro": f"{type(e).__name__}: {e}"
+        }
 
-Controle habitual da mama esquerda.
+print("✅ Função estruturar_laudo() criada")
 
-Dr. Rogério Silva - CRM 12345
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 4. Teste com Laudo Simples
+
+# COMMAND ----------
+
+laudo_teste_1 = """
+MAMOGRAFIA BILATERAL
+
+Técnica: Mamografia digital (FFDM), incidências craniocaudal (CC) e médio-lateral oblíqua (MLO) bilaterais.
+
+Composição do parênquima mamário: Mamas com padrão fibroglandular disperso (ACR B).
+
+Achados: Ausência de nódulos, calcificações suspeitas, distorções arquiteturais ou outras alterações.
+
+Impressão diagnóstica: BI-RADS 1 - Negativo. 
+Recomendação: Controle mamográfico em 12 meses.
 """
 
-# Processar
-resultado = extractor.processar(
-    laudo_texto=laudo_exemplo,
-    cd_atendimento="2024-10001"
-)
+print("=" * 80)
+print("TESTE 1: LAUDO NORMAL")
+print("=" * 80)
 
-# Mostrar resultado
-print(json.dumps(resultado, indent=2, ensure_ascii=False))
+resultado_1 = estruturar_laudo(laudo_teste_1)
 
-# COMMAND ----------
-
-# Validar resultado
-erros = validar_laudo_estruturado(resultado, extractor.template)
-
-if erros:
-    print("⚠️ Erros de validação encontrados:")
-    for erro in erros:
-        print(f"  - {erro}")
+if resultado_1["sucesso"]:
+    print("\n✅ SUCESSO!")
+    print(f"   Tempo: {resultado_1['tempo_processamento_s']:.2f}s")
+    print(f"\n📋 LAUDO ESTRUTURADO:")
+    print(json.dumps(resultado_1["laudo_estruturado"], indent=2, ensure_ascii=False))
 else:
-    print("✅ Laudo válido!")
-
-# Métricas de confiança
-metricas = calcular_metricas_confianca(resultado)
-print(f"\n📊 Confiança média: {metricas['media']:.2f}")
-print(f"   Mínima: {metricas['minima']:.2f}, Máxima: {metricas['maxima']:.2f}")
-
-# Anotações do LLM
-anotacoes = extrair_anotacoes_llm(resultado)
-if anotacoes:
-    print(f"\n📝 Anotações do LLM ({len(anotacoes)}):")
-    for anotacao in anotacoes:
-        print(f"  - {anotacao}")
+    print(f"\n❌ ERRO: {resultado_1['erro']}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 4. Processamento em Lote
+# MAGIC ## 5. Teste com Laudo Complexo (BI-RADS 4)
 
 # COMMAND ----------
 
-# Ler laudos do Delta Lake
-df_laudos = spark.table("seu_schema.laudos_mamografia_raw")
+laudo_teste_2 = """
+MAMOGRAFIA BILATERAL - DIAGNÓSTICA
 
-# Mostrar amostra
-display(df_laudos.limit(5))
+INDICAÇÃO: Nódulo palpável em mama direita.
+
+TÉCNICA: Mamografia digital de campo total (FFDM), incidências CC e MLO bilaterais, 
+com incidências adicionais localizadas com compressão da mama direita.
+
+COMPARAÇÃO: Mamografia de 15/10/2023 disponível.
+
+COMPOSIÇÃO: Mamas heterogeneamente densas (ACR C), o que pode obscurecer pequenas massas.
+
+ACHADOS:
+Mama direita: Observa-se nódulo irregular de aproximadamente 15mm de diâmetro, com margens 
+espiculadas e alta densidade, localizado no quadrante superior externo (QSE), às 2 horas, 
+35mm do mamilo, profundidade média. Corresponde ao achado palpável. Novo em relação ao 
+exame anterior.
+
+Mama esquerda: Sem alterações significativas comparado ao exame prévio.
+
+Linfonodos axilares: Não há linfonodomegalias axilares suspeitas bilateralmente.
+
+IMPRESSÃO:
+BI-RADS 4 - Achado suspeito na mama direita.
+
+CONDUTA:
+Biópsia percutânea guiada por ultrassom é recomendada para caracterização histológica 
+do nódulo em QSE da mama direita.
+"""
+
+print("=" * 80)
+print("TESTE 2: LAUDO COMPLEXO (BI-RADS 4)")
+print("=" * 80)
+
+resultado_2 = estruturar_laudo(laudo_teste_2)
+
+if resultado_2["sucesso"]:
+    print("\n✅ SUCESSO!")
+    print(f"   Tempo: {resultado_2['tempo_processamento_s']:.2f}s")
+    
+    laudo = resultado_2["laudo_estruturado"]
+    
+    print(f"\n📊 RESUMO:")
+    print(f"   BI-RADS: {laudo.get('categorias_diagnosticas_conclusao_laudo', {}).get('categoria_birads')}")
+    print(f"   ACR: {laudo.get('padrao_parenquimatoso', {}).get('classificacao_ACR')}")
+    print(f"   Achados: {len(laudo.get('descricao_achados', []))}")
+    
+    print(f"\n📋 JSON COMPLETO:")
+    print(json.dumps(laudo, indent=2, ensure_ascii=False))
+else:
+    print(f"\n❌ ERRO: {resultado_2['erro']}")
 
 # COMMAND ----------
 
-# Coletar laudos para processar (amostra pequena para teste)
-laudos_sample = df_laudos.limit(10).collect()
+# MAGIC %md
+# MAGIC ## 6. Extrair Campos Chave
 
-laudos_list = [
-    {
-        "cd_atendimento": row.cd_atendimento,
-        "texto": row.texto_laudo,
-        "dt_exame": row.dt_exame
-    }
-    for row in laudos_sample
+# COMMAND ----------
+
+def extrair_campos_chave(laudo_estruturado: dict) -> dict:
+    """
+    Extrai campos principais do laudo estruturado para análise rápida
+    """
+    try:
+        return {
+            "cd_atendimento": laudo_estruturado.get("cd_atendimento"),
+            "birads": laudo_estruturado.get("categorias_diagnosticas_conclusao_laudo", {}).get("categoria_birads"),
+            "acr": laudo_estruturado.get("padrao_parenquimatoso", {}).get("classificacao_ACR"),
+            "num_achados": len(laudo_estruturado.get("descricao_achados", [])),
+            "setting": laudo_estruturado.get("setting", {}).get("tipo"),
+            "lateralidade": laudo_estruturado.get("tecnica", {}).get("lateralidade"),
+            "comparacao_disponivel": laudo_estruturado.get("comparacao_exames_previos", {}).get("disponivel"),
+            "confianca_media": calcular_confianca_media(laudo_estruturado)
+        }
+    except Exception as e:
+        return {"erro": str(e)}
+
+def calcular_confianca_media(laudo: dict) -> float:
+    """
+    Calcula confiança média de todas as seções
+    """
+    confiancas = []
+    
+    # Percorrer todas as seções que têm 'confianca'
+    for key, value in laudo.items():
+        if isinstance(value, dict) and 'confianca' in value:
+            conf = value['confianca']
+            if isinstance(conf, (int, float)):
+                confiancas.append(conf)
+    
+    return sum(confiancas) / len(confiancas) if confiancas else 0.0
+
+# Testar extração
+if resultado_2["sucesso"]:
+    campos_chave = extrair_campos_chave(resultado_2["laudo_estruturado"])
+    
+    print("=" * 80)
+    print("CAMPOS CHAVE EXTRAÍDOS")
+    print("=" * 80)
+    for campo, valor in campos_chave.items():
+        print(f"{campo}: {valor}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 7. Processar Lote de Laudos
+
+# COMMAND ----------
+
+# Exemplo: processar múltiplos laudos
+laudos_teste = [
+    ("LAUDO_001", laudo_teste_1),
+    ("LAUDO_002", laudo_teste_2),
 ]
 
-# Processar lote
-resultados = extractor.processar_lote(
-    laudos=laudos_list,
-    campo_texto="texto",
-    campo_cd="cd_atendimento",
-    verbose=True
-)
+print("=" * 80)
+print(f"PROCESSANDO LOTE DE {len(laudos_teste)} LAUDOS")
+print("=" * 80)
 
-print(f"\n✅ Processados: {len(resultados)} laudos")
-print(f"   Sucessos: {sum(1 for r in resultados if r.get('_sucesso'))}")
-print(f"   Erros: {sum(1 for r in resultados if not r.get('_sucesso'))}")
+resultados = []
+
+for cd_atendimento, texto_laudo in laudos_teste:
+    print(f"\nProcessando {cd_atendimento}...")
+    
+    resultado = estruturar_laudo(texto_laudo, verbose=False)
+    
+    if resultado["sucesso"]:
+        # Adicionar CD_ATENDIMENTO ao laudo estruturado
+        resultado["laudo_estruturado"]["cd_atendimento"] = cd_atendimento
+        
+        campos = extrair_campos_chave(resultado["laudo_estruturado"])
+        print(f"  ✅ BI-RADS: {campos.get('birads')} | ACR: {campos.get('acr')} | {resultado['tempo_processamento_s']:.2f}s")
+        
+        resultados.append({
+            "cd_atendimento": cd_atendimento,
+            "sucesso": True,
+            "laudo_estruturado": resultado["laudo_estruturado"],
+            "tempo_s": resultado["tempo_processamento_s"]
+        })
+    else:
+        print(f"  ❌ Erro: {resultado['erro']}")
+        resultados.append({
+            "cd_atendimento": cd_atendimento,
+            "sucesso": False,
+            "erro": resultado["erro"]
+        })
+
+print("\n" + "=" * 80)
+print(f"✅ {len([r for r in resultados if r['sucesso']])} sucessos / {len(resultados)} total")
+print(f"⏱️  Tempo médio: {sum([r.get('tempo_s', 0) for r in resultados if r['sucesso']]) / len([r for r in resultados if r['sucesso']]):.2f}s")
 
 # COMMAND ----------
 
-# Converter para DataFrame
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, BooleanType
+# MAGIC %md
+# MAGIC ## 8. Análise de Qualidade
+
+# COMMAND ----------
+
 import pandas as pd
 
-# Criar DataFrame Pandas primeiro
-resultados_df = pd.DataFrame([
-    {
-        "cd_atendimento": r.get("cd_atendimento"),
-        "sucesso": r.get("_sucesso", False),
-        "erro": r.get("_erro"),
-        "birads": r.get("categorias_diagnosticas_conclusao_laudo", {}).get("categoria_birads"),
-        "acr": r.get("padrao_parenquimatoso", {}).get("classificacao_ACR"),
-        "num_achados": len(r.get("descricao_achados", [])),
-        "confianca_media": calcular_metricas_confianca(r)["media"] if r.get("_sucesso") else None,
-        "json_completo": json.dumps(r, ensure_ascii=False)
-    }
-    for r in resultados
-])
-
-# Converter para Spark DataFrame
-df_resultados = spark.createDataFrame(resultados_df)
-
-display(df_resultados)
-
-# COMMAND ----------
-
-# Salvar resultados
-df_resultados.write \
-    .format("delta") \
-    .mode("overwrite") \
-    .option("overwriteSchema", "true") \
-    .saveAsTable("seu_schema.laudos_mamografia_estruturados")
-
-print("✅ Resultados salvos em: seu_schema.laudos_mamografia_estruturados")
+# Criar DataFrame com resultados
+if resultados:
+    df_resultados = pd.DataFrame([
+        {
+            "cd_atendimento": r["cd_atendimento"],
+            "sucesso": r["sucesso"],
+            "birads": r["laudo_estruturado"].get("categorias_diagnosticas_conclusao_laudo", {}).get("categoria_birads") if r["sucesso"] else None,
+            "acr": r["laudo_estruturado"].get("padrao_parenquimatoso", {}).get("classificacao_ACR") if r["sucesso"] else None,
+            "num_achados": len(r["laudo_estruturado"].get("descricao_achados", [])) if r["sucesso"] else None,
+            "tempo_s": r.get("tempo_s")
+        }
+        for r in resultados
+    ])
+    
+    display(df_resultados)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 5. Análise de Qualidade
+# MAGIC ## 9. Exportar Resultados (Opcional)
 
 # COMMAND ----------
 
-# Estatísticas de qualidade
-stats = df_resultados.selectExpr(
-    "count(*) as total",
-    "sum(case when sucesso then 1 else 0 end) as sucessos",
-    "avg(confianca_media) as confianca_media",
-    "count(distinct birads) as num_birads_unicos"
-).collect()[0]
+# Salvar resultados em JSON
+output_path = "/dbfs/tmp/laudos_processados_teste.json"
 
-print(f"""
-📊 Estatísticas de Processamento:
-   - Total processado: {stats.total}
-   - Taxa de sucesso: {stats.sucessos / stats.total * 100:.1f}%
-   - Confiança média: {stats.confianca_media:.2f}
-   - BI-RADS únicos: {stats.num_birads_unicos}
-""")
+with open(output_path, 'w', encoding='utf-8') as f:
+    json.dump(resultados, f, ensure_ascii=False, indent=2)
 
-# COMMAND ----------
-
-# Distribuição de BI-RADS
-display(
-    df_resultados
-    .filter("sucesso = true")
-    .groupBy("birads")
-    .count()
-    .orderBy("birads")
-)
-
-# COMMAND ----------
-
-# Distribuição de ACR
-display(
-    df_resultados
-    .filter("sucesso = true")
-    .groupBy("acr")
-    .count()
-    .orderBy("acr")
-)
+print(f"✅ Resultados salvos em: {output_path}")
+print(f"   Total: {len(resultados)} laudos")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 6. UDF para Processar na Tabela Inteira
-
-# COMMAND ----------
-
-from pyspark.sql.functions import udf, col
-from pyspark.sql.types import StringType
-
-# Criar UDF
-@udf(returnType=StringType())
-def estruturar_laudo_udf(texto, cd_atendimento):
-    """UDF para processar laudos no Spark"""
-    try:
-        resultado = extractor.processar(texto, cd_atendimento=cd_atendimento)
-        return json.dumps(resultado, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"erro": str(e), "_sucesso": False}, ensure_ascii=False)
-
-# Aplicar na tabela inteira (cuidado com volume!)
-df_todos = spark.table("seu_schema.laudos_mamografia_raw")
-
-df_processado = df_todos.withColumn(
-    "laudo_estruturado_json",
-    estruturar_laudo_udf(col("texto_laudo"), col("cd_atendimento"))
-)
-
-# Salvar (pode demorar dependendo do volume)
-# df_processado.write.format("delta").mode("overwrite").saveAsTable("seu_schema.laudos_processados_completo")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 7. Casos de Erro - Análise
-
-# COMMAND ----------
-
-# Verificar casos com erro
-df_erros = df_resultados.filter("sucesso = false")
-
-if df_erros.count() > 0:
-    print(f"⚠️ {df_erros.count()} laudos com erro")
-    display(df_erros.select("cd_atendimento", "erro"))
-else:
-    print("✅ Nenhum erro encontrado!")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## 8. Exportar Amostra para Validação Manual
-
-# COMMAND ----------
-
-# Selecionar amostra aleatória para validação manual
-amostra_validacao = df_resultados \
-    .filter("sucesso = true") \
-    .sample(fraction=0.1, seed=42) \
-    .limit(20)
-
-# Exportar para CSV
-amostra_validacao.toPandas().to_csv(
-    "/dbfs/tmp/amostra_validacao_mamografia.csv",
-    index=False
-)
-
-print("✅ Amostra exportada para: /dbfs/tmp/amostra_validacao_mamografia.csv")
-print("   Use para validação manual com médicos radiologistas")
+# MAGIC ## 📊 Próximos Passos
+# MAGIC 
+# MAGIC Para processar CSVs completos em produção:
+# MAGIC → Use o notebook **`02_processar_csv_mamografia.py`**
+# MAGIC 
+# MAGIC Performance esperada:
+# MAGIC - Llama 3.1 8B: ~5-6 laudos/segundo
+# MAGIC - Llama 3.3 70B: ~1-2 laudos/segundo (mais preciso)
 

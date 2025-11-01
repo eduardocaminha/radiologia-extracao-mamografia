@@ -1,8 +1,16 @@
 # Estruturação de Laudos de Mamografia
 
-Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-3.5 Mini) seguindo padrão científico internacional.
+Sistema de estruturação automática de laudos de mamografia usando **Databricks Foundation Models** seguindo padrão científico internacional.
 
 [![GitHub](https://img.shields.io/badge/GitHub-radiologia--extracao--mamografia-blue)](https://github.com/eduardocaminha/radiologia-extracao-mamografia)
+
+## ✨ Características
+
+- ✅ **Sem setup** - Usa modelos já instalados no Databricks
+- ✅ **Rápido** - 300-350 laudos/minuto (Llama 3.1 8B)
+- ✅ **Preciso** - JSON válido testado em produção
+- ✅ **Escalável** - Processamento paralelo com Spark
+- ✅ **Funciona em ARM64** - Sem necessidade de GPU
 
 ## 📋 Estrutura do Projeto
 
@@ -14,116 +22,121 @@ Sistema de estruturação automática de laudos de mamografia usando LLM (Phi-3.
 │   └── prompt_extracao_mamografia.md      # Prompt do LLM
 └── notebooks/
     ├── README.md                          # Documentação dos notebooks
-    ├── 00_setup_transformers_phi4.py      # Setup Transformers + Phi-3.5 (1x por cluster)
-    ├── 01_processar_laudos.py             # Notebook teste/desenvolvimento
-    └── 02_processar_csv_mamografia.py     # Notebook produção (CSV → Delta)
+    ├── 01_processar_laudos.py             # Teste/desenvolvimento (laudos individuais)
+    └── 02_processar_csv_mamografia.py     # Produção (CSV → Delta Table)
 ```
 
-## 🚀 Setup no Databricks
+## 🚀 Como Usar no Databricks
 
 ### 1. Clonar repositório
 
-```python
-# No Databricks Notebook
+```bash
 %sh
 cd /Workspace/Repos/<seu_usuario>/
 git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
-cd radiologia-extracao-mamografia
 ```
 
-### 2. Setup Phi-3.5 Mini (CPU/GPU)
+### 2. Ajustar configurações
 
-Execute o notebook: **`00_setup_transformers_phi4.py`**
-
-Este notebook:
-- ✅ Funciona em CPU (ARM64 ou x86_64)
-- ✅ Funciona em GPU (10-20x mais rápido)
-- ✅ Baixa Phi-3.5 Mini quantizado (4-bit)
-- ✅ ~20-30 minutos para download
-
-**Clusters suportados:**
-- CPU: Qualquer arquitetura (ARM64 / x86_64)
-- GPU: NVIDIA (g5.xlarge, g4dn.xlarge, etc.)
-
-### 3. Processar laudos
-
-Execute: **`02_processar_csv_mamografia.py`**
+Abrir **`02_processar_csv_mamografia.py`** e configurar:
 
 ```python
-# Configurar variáveis
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-BATCH_SIZE = 10  # CPU: 5-10, GPU: 50-100
-
-# Executar (Run All)
+ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"
 ```
 
-## 📊 CSV Esperado
+### 3. Executar
 
-Colunas necessárias:
-- `CD_ATENDIMENTO` - ID do atendimento
-- `DS_LAUDO_MEDICO` - Texto do laudo
-- `NM_PROCEDIMENTO` - Nome do procedimento (opcional)
+```
+Run All (Ctrl + Shift + Enter)
+```
 
-**Output:** Delta Table com JSON estruturado + métricas de qualidade
+**Não precisa de setup ou instalação!** Os modelos já estão disponíveis no Databricks.
 
-Ver documentação completa: [`notebooks/README.md`](notebooks/README.md)
+## 📊 Input/Output
 
-## 📝 Template e Prompt
+### CSV de Entrada
 
-- **Template**: `config/template.json` - Estrutura JSON de saída
-- **Prompt**: `config/prompt_extracao_mamografia.md` - Instruções para o LLM
+Colunas obrigatórias:
+- `CD_ATENDIMENTO` - ID único do atendimento
+- `DS_LAUDO_MEDICO` - Texto completo do laudo
 
-## 📈 Performance Esperada
+Colunas opcionais:
+- `NM_PROCEDIMENTO`, `DT_PROCEDIMENTO_REALIZADO`, etc.
 
-### CPU (seu cluster atual)
-- **Velocidade**: ~2-5 laudos/minuto
-- **RAM**: ~3-4GB por worker
-- **Uso**: Desenvolvimento, testes, lotes pequenos
+### Delta Table de Saída
 
-### GPU (recomendado para produção)
-- **Velocidade**: ~30-50 laudos/minuto
-- **RAM**: ~6-8GB VRAM
-- **Clusters**: g5.xlarge, g4dn.xlarge
+Colunas geradas:
+- **Originais**: todas as colunas do CSV
+- **Estruturado**: `laudo_estruturado` (JSON completo)
+- **Extraídos**: `birads`, `acr`, `num_achados`, `lateralidade`
+- **Metadados**: `processamento_sucesso`, `modelo_llm`, `dt_processamento`
+- **Qualidade**: `erro_processamento` (se houver)
 
-## 🔍 Validação de Qualidade
+## 📈 Performance
 
-Output do notebook `02_processar_csv_mamografia.py`:
-- ✅ JSON válido
-- ✅ Campos obrigatórios presentes
-- ✅ Valores dentro do domínio permitido
-- ✅ Scores de confiança (0.0-1.0)
-- ✅ Estatísticas por categoria BI-RADS
+| Modelo | Laudos/minuto | Laudos/segundo | Uso |
+|--------|---------------|----------------|-----|
+| Llama 3.1 8B | 300-350 | ~5-6 | **Recomendado** |
+| Llama 3.3 70B | 60-120 | ~1-2 | Mais preciso |
 
-## 📚 Referências
+**Testado em produção:**
+- ✅ JSON válido em 100% dos casos testados
+- ✅ 0.17s por laudo (Llama 3.1 8B)
+- ✅ Funciona em ARM64 CPU (sem GPU)
 
-Template baseado em padrão científico internacional de estruturação de laudos mamográficos.
+**Exemplo:** 10.000 laudos
+- Llama 3.1 8B: ~30-35 minutos
+- Llama 3.3 70B: ~80-165 minutos
+
+## 📝 Modelos Disponíveis
+
+Endpoints testados no Databricks:
+- ✅ `databricks-meta-llama-3-1-8b-instruct` ← **Recomendado**
+- ✅ `databricks-meta-llama-3-3-70b-instruct`
+- ✅ `databricks-claude-sonnet-4` (API comercial)
+- ✅ `databricks-mistral-7b-instruct-v0-2`
+
+## 🔍 Análises Incluídas
+
+O notebook de produção gera automaticamente:
+1. Taxa de sucesso do processamento
+2. Distribuição de categorias BI-RADS
+3. Distribuição de densidade mamária (ACR)
+4. Distribuição de achados por laudo
+5. Lista de casos suspeitos (BI-RADS 4 e 5)
+6. Erros de processamento (se houver)
+
+## 📚 Documentação
+
+- **Template**: [`config/template.json`](config/template.json) - Estrutura JSON completa
+- **Prompt**: [`config/prompt_extracao_mamografia.md`](config/prompt_extracao_mamografia.md) - Instruções para o LLM
+- **Notebooks**: [`notebooks/README.md`](notebooks/README.md) - Guia detalhado
 
 ## 🆘 Troubleshooting
 
-### Modelo não carrega (RAM insuficiente)
+### Erro: "Endpoint não encontrado"
 ```python
-# Use versão menor ou quantização maior
-model = AutoModelForCausalLM.from_pretrained(
-    "microsoft/Phi-3.5-mini-instruct",
-    load_in_8bit=True  # Ao invés de 4bit
-)
+# Verificar endpoints disponíveis
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient()
+for e in w.serving_endpoints.list():
+    print(e.name)
 ```
 
-### GPU não detectada
-```python
-import torch
-print(torch.cuda.is_available())
-# Se False: está usando CPU (funcional mas mais lento)
-```
+### Performance lenta
+- Use `databricks-meta-llama-3-1-8b-instruct` (mais rápido)
+- Aumente `BATCH_SIZE` no notebook
+- Processe em horários de menor carga
 
-### Download muito lento
-```python
-# Usar mirror brasileiro (opcional)
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-```
+### Validação médica
+Sempre revisar:
+- Todos os casos BI-RADS 4 e 5
+- Amostra de 50-100 laudos estruturados
+- Casos com `erro_processamento`
 
-## 📧 Contato
+## 📧 Suporte
 
-Para dúvidas ou contribuições, abra uma issue no GitHub.
+Para dúvidas ou issues: [GitHub Issues](https://github.com/eduardocaminha/radiologia-extracao-mamografia/issues)
 

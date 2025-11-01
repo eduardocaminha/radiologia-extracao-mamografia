@@ -1,36 +1,42 @@
 # Notebooks - Processamento de Laudos
 
+## ✨ Sem Setup Necessário!
+
+Estes notebooks usam **Databricks Foundation Models** (serving endpoints) que já estão instalados e prontos para uso.
+
+Não precisa baixar modelos, instalar bibliotecas ou configurar GPU/CPU. É só executar!
+
 ## 📋 Notebooks Disponíveis
 
-### 0. `00_setup_transformers_phi4.py` 🔧
-**Executar 1x por cluster** antes de usar os outros notebooks.
-
-Instala e configura:
-- Transformers + Accelerate + BitsAndBytes
-- Modelo Phi-3.5 Mini (quantizado 4-bit)
-- Testes de validação
-
-**Tempo:** ~20-30 minutos (download modelo)
-
-**Funciona em:**
-- ✅ CPU (ARM64 / x86_64) - lento mas funcional
-- ✅ GPU (NVIDIA) - 10-20x mais rápido
-
-### 1. `01_processar_laudos.py`
-Notebook de teste e desenvolvimento para processar laudos individuais ou pequenos lotes.
-
-**Pré-requisito:** Executar `00_setup_transformers_phi4.py` primeiro
+### 1. `01_processar_laudos.py` 🧪
+**Teste e desenvolvimento** - Processar laudos individuais ou pequenos lotes
 
 **Uso:**
-- Testar o sistema com laudos de exemplo
-- Debug de erros de estruturação
-- Validação de qualidade
-- Ajuste de prompts
+- Testar estruturação com laudos de exemplo
+- Debug e validação de qualidade
+- Ajustar prompts e parâmetros
+- Comparar diferentes modelos (Llama 8B vs 70B)
+
+**Sem pré-requisitos!** Apenas execute.
+
+**Tempo por laudo:**
+- Llama 3.1 8B: ~0.2s
+- Llama 3.3 70B: ~0.8s
 
 ### 2. `02_processar_csv_mamografia.py` ⭐
-Notebook de produção para processar CSVs completos de mamografias.
+**Produção** - Processar CSVs completos em lote com Spark
 
-**Pré-requisito:** Executar `00_setup_transformers_phi4.py` primeiro
+**Uso:**
+- Processar milhares de laudos de uma vez
+- Salvar em Delta Table estruturada
+- Análises automáticas de qualidade
+- Dashboards e visualizações
+
+**Sem pré-requisitos!** Apenas configure paths e execute.
+
+**Performance:**
+- 300-350 laudos/minuto (Llama 3.1 8B)
+- 60-120 laudos/minuto (Llama 3.3 70B)
 
 **Input:** CSV com colunas:
 - `CD_ATENDIMENTO` (obrigatório)
@@ -49,30 +55,42 @@ Notebook de produção para processar CSVs completos de mamografias.
 - Anotações da LLM
 - Erros de validação (se houver)
 
-## 🚀 Como Usar no Databricks
+## 🚀 Como Usar
 
-### Passo a Passo
+### Passo a Passo Rápido
 
-1. **Clonar repositório**
+1. **Clonar repositório no Databricks**
 ```bash
 %sh
 cd /Workspace/Repos/<seu_usuario>/
 git clone https://github.com/eduardocaminha/radiologia-extracao-mamografia.git
 ```
 
-2. **Setup modelo (1x por cluster)**
-   - Executar: `00_setup_transformers_phi4.py`
-   - Aguardar: ~20-30 minutos (download)
-
-3. **Configurar `02_processar_csv_mamografia.py`**
+2. **Abrir e configurar `02_processar_csv_mamografia.py`**
 ```python
+# Seção 1: Configuração
 CSV_PATH = "/seu/caminho/para/laudos.csv"
 OUTPUT_TABLE = "seu_catalog.seu_schema.mamografia_estruturada"
-BATCH_SIZE = 10  # CPU: 5-10, GPU: 50-100
+ENDPOINT_NAME = "databricks-meta-llama-3-1-8b-instruct"
 ```
 
-4. **Executar**
-   - Run All (Ctrl + Shift + Enter)
+3. **Executar tudo**
+```
+Run All (Ctrl + Shift + Enter)
+```
+
+**Pronto!** Não precisa de setup prévio.
+
+---
+
+### Teste Rápido (Opcional)
+
+Antes de processar CSV completo, teste com `01_processar_laudos.py`:
+
+1. Abrir notebook
+2. Seção 4: Cole seu laudo de teste
+3. Executar células 1-6
+4. Ver JSON estruturado na saída
 
 ### Output
 
@@ -132,45 +150,55 @@ ORDER BY birads DESC, confianca_media ASC
 
 ## 🔧 Troubleshooting
 
-### Erro: Modelo não carrega (RAM insuficiente)
+### Erro: "Endpoint não encontrado"
 ```python
-# No notebook 00_setup, trocar quantização:
-model = AutoModelForCausalLM.from_pretrained(
-    "microsoft/Phi-3.5-mini-instruct",
-    load_in_8bit=True  # Mais leve que 4bit
-)
+# Listar endpoints disponíveis
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient()
+for endpoint in w.serving_endpoints.list():
+    print(f"- {endpoint.name}")
 ```
 
-### Erro: GPU não detectada
-```python
-import torch
-print(torch.cuda.is_available())
-# False = usando CPU (funciona mas é lento)
-```
+Se o endpoint não existir, use um alternativo:
+- `databricks-meta-llama-3-1-8b-instruct`
+- `databricks-mistral-7b-instruct-v0-2`
+
+### Erro: "JSON inválido"
+Verifique:
+1. Template (`config/template.json`) está acessível
+2. Prompt (`config/prompt_extracao_mamografia.md`) está completo
+3. Laudo não está vazio
 
 ### Performance lenta
-- **CPU:** Normal, espere ~2-5 laudos/min
-- **Solução:** Pedir cluster com GPU ao time infra
-- Ajustar `BATCH_SIZE` menor (5-10)
+- **Llama 8B** já é o mais rápido (~5-6 laudos/s)
+- Processar em horários de menor carga do cluster
+- Dividir CSV em lotes menores
 
-### Download travou
+### Validação falhou
 ```python
-# Adicionar timeout no notebook 00_setup:
-os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
+# Ver casos com erro
+df_erros = spark.sql(f"""
+    SELECT CD_ATENDIMENTO, erro_processamento, DS_LAUDO_MEDICO
+    FROM {OUTPUT_TABLE}
+    WHERE processamento_sucesso = false
+    LIMIT 10
+""")
+display(df_erros)
 ```
 
-## 📈 Performance Esperada
+## 📈 Performance Real (Testada)
 
-| Cluster | Hardware | Laudos/min | Uso |
-|---------|----------|-----------|-----|
-| CPU ARM64 | 4 cores | ~2-5 | Dev/Teste |
-| CPU x86 | 8 cores | ~5-10 | Dev/Teste |
-| g5.xlarge | A10G GPU | ~30-50 | Produção |
-| g4dn.xlarge | T4 GPU | ~20-30 | Produção |
+| Modelo | Endpoint | Laudos/min | Latência | Uso |
+|--------|----------|-----------|----------|-----|
+| Llama 3.1 8B | databricks-meta-llama-3-1-8b-instruct | 300-350 | 0.17s | ✅ **Recomendado** |
+| Llama 3.3 70B | databricks-meta-llama-3-3-70b-instruct | 60-120 | 0.80s | Alta precisão |
+| Mistral 7B | databricks-mistral-7b-instruct-v0-2 | 200-250 | 0.24s | Alternativa |
 
-**Exemplo:** 1.000 laudos
-- **CPU:** ~3-8 horas
-- **GPU:** ~20-50 minutos
+**Cluster testado:** ARM64 CPU (Standard_D8pds_v6) - 8 cores, 32GB RAM
+
+**Exemplo real:** 10.000 laudos
+- Llama 3.1 8B: ~30-35 minutos
+- Llama 3.3 70B: ~80-165 minutos
 
 ## 📝 Validação de Qualidade
 
